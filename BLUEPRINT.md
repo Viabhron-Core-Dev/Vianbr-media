@@ -156,4 +156,6 @@
   - Implemented the singleton `LogKeeper` for diagnostic dumping and SharedPreferences persistence.
   - Implemented a `WelcomeScreen` to onboard users and request explicit `READ_MEDIA_AUDIO`, `READ_MEDIA_VIDEO`, and `READ_EXTERNAL_STORAGE` permissions based on Android SDK levels.
   - Deployed the Global Diagnostic FAB (bug icon, bottom right) operating across the entire application interface.
+* **Additional Action**:
+  - Configured a GitHub Actions workflow (`.github/workflows/build.yml`) to automatically build and provide the APK via GitHub Actions.
 
