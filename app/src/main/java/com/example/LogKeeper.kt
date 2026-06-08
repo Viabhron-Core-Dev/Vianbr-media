@@ -12,6 +12,28 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+data class LogEntry(
+    val timestampMs: Long,
+    val isError: Boolean,
+    val tag: String,
+    val message: String,
+    val stackTrace: String? = null
+) {
+    val formattedTime: String
+        get() = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date(timestampMs))
+    
+    val formattedString: String
+        get() {
+            var formatted = "[$formattedTime] "
+            if (isError) formatted += "ERROR [$tag]: " else formatted += "[$tag] "
+            formatted += message
+            if (stackTrace != null) {
+                formatted += "\n$stackTrace"
+            }
+            return formatted
+        }
+}
+
 object LogKeeper {
     private const val TAG = "LogKeeper"
     private const val PREFS_NAME = "log_keeper_prefs"
@@ -21,8 +43,8 @@ object LogKeeper {
     private val _isEnabled = MutableStateFlow(true)
     val isEnabled: StateFlow<Boolean> = _isEnabled.asStateFlow()
     
-    private val _logs = MutableStateFlow<List<String>>(emptyList())
-    val logs: StateFlow<List<String>> = _logs.asStateFlow()
+    private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
+    val logs: StateFlow<List<LogEntry>> = _logs.asStateFlow()
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -35,33 +57,29 @@ object LogKeeper {
             defaultHandler?.uncaughtException(thread, throwable)
         }
         
-        log("LogKeeper initialized")
+        log("LogKeeper initialized", "System")
     }
 
     fun toggleLogger() {
         val newState = !_isEnabled.value
         _isEnabled.value = newState
         prefs.edit().putBoolean(KEY_LOGGER_ENABLED, newState).apply()
-        log("Logger state changed to: $newState")
+        log("Logger state changed to: $newState", "System")
     }
 
-    fun log(message: String) {
+    fun log(message: String, tag: String = "App") {
         if (!_isEnabled.value) return
-        val timestamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
-        val formatted = "[$timestamp] $message"
-        Log.d(TAG, formatted)
-        _logs.value = _logs.value + formatted
+        val entry = LogEntry(System.currentTimeMillis(), false, tag, message)
+        Log.d(TAG, entry.formattedString)
+        _logs.value = _logs.value + entry
     }
 
     fun logError(tag: String, message: String, throwable: Throwable? = null) {
         if (!_isEnabled.value) return
-        val timestamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
-        var formatted = "[$timestamp] ERROR [$tag]: $message"
-        if (throwable != null) {
-            formatted += "\n${Log.getStackTraceString(throwable)}"
-        }
-        Log.e(TAG, formatted)
-        _logs.value = _logs.value + formatted
+        val stackTrace = throwable?.let { Log.getStackTraceString(it) }
+        val entry = LogEntry(System.currentTimeMillis(), true, tag, message, stackTrace)
+        Log.e(TAG, entry.formattedString)
+        _logs.value = _logs.value + entry
     }
 
     private fun dumpCrash(context: Context, throwable: Throwable) {
@@ -85,6 +103,25 @@ object LogKeeper {
             Log.d(TAG, "Crash dumped to: ${'$'}{file.absolutePath}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to write crash dump", e)
+        }
+    }
+
+    fun dumpCurrentLogs(context: Context) {
+        if (!_isEnabled.value) return
+        try {
+            val dateStr = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.US).format(Date())
+            val fileName = "Vianbrplay_logs_$dateStr.txt"
+            
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadsDir.exists()) downloadsDir.mkdirs()
+            
+            val file = File(downloadsDir, fileName)
+            val logsData = _logs.value.joinToString("\n") { it.formattedString }
+            
+            file.writeText(logsData)
+            log("Logs dumped to: ${file.absolutePath}", "System")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to write logs dump", e)
         }
     }
 }
