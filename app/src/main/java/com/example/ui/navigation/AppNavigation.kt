@@ -5,6 +5,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.screens.MainScreen
+import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.WelcomeScreen
 
 @Composable
@@ -22,7 +23,16 @@ fun AppNavigation() {
             )
         }
         composable("main") {
-            MainScreen()
+            MainScreen(
+                onNavigateToSettings = {
+                    navController.navigate("settings")
+                }
+            )
+        }
+        composable("settings") {
+            SettingsScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
     }
 }

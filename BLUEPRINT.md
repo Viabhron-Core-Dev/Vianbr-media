@@ -162,4 +162,9 @@
   - Built time-based filter pills (1h, 6h, 12h, 24h, All) to query the diagnostic local cache.
   - Added export options to immediately copy the structured log output to the clipboard or download the dump locally via MediaStore.
   - Wired the global diagnostic FAB to trigger the new `LoggerScreen` view conditionally over the application navigation host.
+* **Phase 2 Complete**:
+  - Established `SettingsManager` to persistently store the SAF Output Directory URI and media extension preferences.
+  - Built out the `SettingsScreen` leveraging `ACTION_OPEN_DOCUMENT_TREE` to allow selection and URI granting capabilities for the media output folder.
+  - Implemented `MediaRepository` tapping into device `MediaStore` safely to asynchronously gather local Video and Audio entities.
+  - Wired a new `MediaViewModel` into the `MainScreen` to actively fetch, load, and present indexed media in a scaffolded, responsive list layout.
 
