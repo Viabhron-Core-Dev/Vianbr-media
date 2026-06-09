@@ -167,4 +167,10 @@
   - Built out the `SettingsScreen` leveraging `ACTION_OPEN_DOCUMENT_TREE` to allow selection and URI granting capabilities for the media output folder.
   - Implemented `MediaRepository` tapping into device `MediaStore` safely to asynchronously gather local Video and Audio entities.
   - Wired a new `MediaViewModel` into the `MainScreen` to actively fetch, load, and present indexed media in a scaffolded, responsive list layout.
+* **Phase 3 Complete**:
+  - Updated `SettingsManager` to store multiple `folderUris` instead of a single output folder.
+  - Refactored `MediaRepository` from `MediaStore` to actively scan the selected `folderUris` using `DocumentsContract` tree queries.
+  - Revamped `SettingsScreen` to list multiple configured folders, allowing user-invoked additions and removals.
+  - Wrapped the `MainScreen`'s content in a `PullToRefreshBox` from experimental Material 3 to handle on-demand reloading.
+  - Modified the empty list state to support `verticalScroll`, ensuring `PullToRefreshBox` touch intercepts function even with zero items.
 

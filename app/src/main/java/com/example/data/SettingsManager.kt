@@ -9,24 +9,35 @@ import kotlinx.coroutines.flow.asStateFlow
 class SettingsManager private constructor(context: Context) {
     private val prefs = context.getSharedPreferences("vianbr_settings", Context.MODE_PRIVATE)
 
-    private val _outputUri = MutableStateFlow<Uri?>(null)
-    val outputUri: StateFlow<Uri?> = _outputUri.asStateFlow()
+    private val _folderUris = MutableStateFlow<List<Uri>>(emptyList())
+    val folderUris: StateFlow<List<Uri>> = _folderUris.asStateFlow()
 
     private val _extensions = MutableStateFlow<List<String>>(emptyList())
     val extensions: StateFlow<List<String>> = _extensions.asStateFlow()
 
     init {
-        val uriStr = prefs.getString("output_uri", null)
-        if (uriStr != null) {
-            _outputUri.value = Uri.parse(uriStr)
+        val urisStrSet = prefs.getStringSet("folder_uris", emptySet())
+        if (!urisStrSet.isNullOrEmpty()) {
+            _folderUris.value = urisStrSet.map { Uri.parse(it) }
         }
         val exts = prefs.getStringSet("extensions", setOf("mp4", "mkv", "mp3"))?.toList() ?: listOf("mp4", "mkv", "mp3")
         _extensions.value = exts
     }
 
-    fun setOutputUri(uri: Uri) {
-        _outputUri.value = uri
-        prefs.edit().putString("output_uri", uri.toString()).apply()
+    fun addFolderUri(uri: Uri) {
+        val currentList = _folderUris.value.toMutableList()
+        if (!currentList.contains(uri)) {
+            currentList.add(uri)
+            _folderUris.value = currentList
+            prefs.edit().putStringSet("folder_uris", currentList.map { it.toString() }.toSet()).apply()
+        }
+    }
+
+    fun removeFolderUri(uri: Uri) {
+        val currentList = _folderUris.value.toMutableList()
+        currentList.remove(uri)
+        _folderUris.value = currentList
+        prefs.edit().putStringSet("folder_uris", currentList.map { it.toString() }.toSet()).apply()
     }
 
     fun setExtensions(exts: List<String>) {
