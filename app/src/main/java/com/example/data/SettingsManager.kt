@@ -45,6 +45,10 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putStringSet("extensions", exts.toSet()).apply()
     }
 
+    var hasSeenWelcome: Boolean
+        get() = prefs.getBoolean("has_seen_welcome", false)
+        set(value) = prefs.edit().putBoolean("has_seen_welcome", value).apply()
+
     companion object {
         @Volatile
         private var instance: SettingsManager? = null
