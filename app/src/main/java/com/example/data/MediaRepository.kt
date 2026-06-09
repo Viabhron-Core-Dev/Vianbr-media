@@ -25,6 +25,7 @@ data class MediaFolder(
 ) {
     val totalSize: Long get() = mediaItems.sumOf { it.size }
     val videoCount: Int get() = mediaItems.size
+    val totalDuration: Long get() = mediaItems.sumOf { it.duration }
 }
 
 enum class MediaType {
@@ -49,7 +50,7 @@ class MediaRepository(private val context: Context) {
             }
         }
 
-        return folders.sortedBy { it.name.lowercase() }
+        return folders.distinctBy { it.id }.sortedBy { it.name.lowercase() }
     }
 
     private fun scanDirectoryForFolders(

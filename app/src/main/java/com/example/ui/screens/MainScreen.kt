@@ -17,6 +17,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.MediaFolder
@@ -136,42 +140,95 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp)
-            .clickable { onClick() }
+            .padding(bottom = 8.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(64.dp)
+                    .size(80.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "${folder.videoCount}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                Icon(
+                    imageVector = Icons.Filled.Folder,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
+                // Duration chip at bottom
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 4.dp)
+                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    val durationSeconds = folder.totalDuration / 1000
+                    val hours = durationSeconds / 3600
+                    val minutes = (durationSeconds % 3600) / 60
+                    val seconds = durationSeconds % 60
+                    val durationStr = if (hours > 0) {
+                        String.format("%d:%02d:%02d", hours, minutes, seconds)
+                    } else {
+                        String.format("%02d:%02d", minutes, seconds)
+                    }
+                    Text(
+                        text = durationStr,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(text = folder.name, style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(4.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = folder.path,
+                    text = folder.name, 
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                val displayPath = folder.path.replace("primary:", "/storage/emulated/0/")
+                Text(
+                    text = displayPath,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${folder.totalSize / (1024 * 1024)} MB",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "${folder.videoCount} Videos",
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        val sizeMb = folder.totalSize / (1024 * 1024)
+                        val sizeStr = if (sizeMb > 1024) String.format("%.2f GB", sizeMb / 1024f) else "$sizeMb MB"
+                        Text(
+                            text = sizeStr,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }
