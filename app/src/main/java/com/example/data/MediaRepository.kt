@@ -40,11 +40,39 @@ class MediaRepository(private val context: Context) {
         val folderUris = settings.folderUris.value
         val exts = settings.extensions.value
 
+        val scannedDocIds = mutableSetOf<String>()
+
+        val durationMap = mutableMapOf<String, Long>()
+        try {
+            context.contentResolver.query(
+                android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                arrayOf(
+                    android.provider.MediaStore.Video.Media.DISPLAY_NAME,
+                    android.provider.MediaStore.Video.Media.SIZE,
+                    android.provider.MediaStore.Video.Media.DURATION
+                ),
+                null, null, null
+            )?.use { cursor ->
+                val nameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DISPLAY_NAME)
+                val sizeCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.SIZE)
+                val durCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DURATION)
+                
+                while (cursor.moveToNext()) {
+                    val n = cursor.getString(nameCol) ?: continue
+                    val s = cursor.getLong(sizeCol)
+                    val d = cursor.getLong(durCol)
+                    durationMap["${n}_${s}"] = d
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MediaRepository", "Error fetching MediaStore durations: ${e.message}")
+        }
+
         for (treeUri in folderUris) {
             try {
                 val rootDocId = DocumentsContract.getTreeDocumentId(treeUri)
                 val rootName = rootDocId.substringAfterLast('/', rootDocId.substringAfterLast(':'))
-                scanDirectoryForFolders(treeUri, rootDocId, rootName, rootDocId, exts, folders)
+                scanDirectoryForFolders(treeUri, rootDocId, rootName, rootDocId, exts, folders, scannedDocIds, durationMap)
             } catch (e: Exception) {
                 Log.e("MediaRepository", "Error accessing tree: ${treeUri}, ${e.message}")
             }
@@ -59,8 +87,12 @@ class MediaRepository(private val context: Context) {
         folderName: String,
         folderPath: String,
         extensions: List<String>,
-        folders: MutableList<MediaFolder>
+        folders: MutableList<MediaFolder>,
+        scannedDocIds: MutableSet<String>,
+        durationMap: Map<String, Long>
     ) {
+        if (!scannedDocIds.add(documentId)) return
+
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId)
         val projection = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
@@ -84,7 +116,7 @@ class MediaRepository(private val context: Context) {
                 val dateCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
 
                 while (cursor.moveToNext()) {
-                    val docId = cursor.getString(idCol)
+                    val docId = cursor.getString(idCol) ?: continue
                     val name = cursor.getString(nameCol) ?: ""
                     val mimeType = cursor.getString(mimeCol) ?: ""
                     val size = cursor.getLong(sizeCol)
@@ -96,7 +128,7 @@ class MediaRepository(private val context: Context) {
                         subDirs.add(Pair(docId, name))
                     } else {
                         val ext = name.substringAfterLast('.', "").lowercase()
-                        if (extensions.contains(ext)) {
+                        if (extensions.contains(ext) || (ext.isEmpty() && mimeType.startsWith("video/"))) {
                             val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
                             val mediaType = if (mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi")) MediaType.VIDEO else MediaType.AUDIO
                             mediaItems.add(MediaItem(docId.hashCode().toLong(), uri, name, size, 0L, date, mediaType, false))
@@ -115,8 +147,8 @@ class MediaRepository(private val context: Context) {
                 val baseName = item.name.substringBeforeLast('.').lowercase()
                 val hasSub = subtitleFiles.contains(baseName)
                 
-                // Extract duration safely
-                val duration = extractDuration(item.uri)
+                // Extract duration safely from map
+                val duration = durationMap["${item.name}_${item.size}"] ?: 0L
 
                 item.copy(hasSubtitle = hasSub, duration = duration)
             }
@@ -124,22 +156,7 @@ class MediaRepository(private val context: Context) {
         }
 
         for ((subDocId, subName) in subDirs) {
-            scanDirectoryForFolders(treeUri, subDocId, subName, "$folderPath/$subName", extensions, folders)
-        }
-    }
-
-    private fun extractDuration(uri: Uri): Long {
-        val retriever = android.media.MediaMetadataRetriever()
-        return try {
-            retriever.setDataSource(context, uri)
-            val time = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-            time?.toLongOrNull() ?: 0L
-        } catch (e: Exception) {
-            0L
-        } finally {
-            try {
-                retriever.release()
-            } catch (e: Exception) {}
+            scanDirectoryForFolders(treeUri, subDocId, subName, "$folderPath/$subName", extensions, folders, scannedDocIds, durationMap)
         }
     }
 }
