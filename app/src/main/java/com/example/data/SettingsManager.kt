@@ -20,7 +20,16 @@ class SettingsManager private constructor(context: Context) {
         if (!urisStrSet.isNullOrEmpty()) {
             _folderUris.value = urisStrSet.map { Uri.parse(it) }
         }
-        val exts = prefs.getStringSet("extensions", setOf("mp4", "mkv", "mp3"))?.toList() ?: listOf("mp4", "mkv", "mp3")
+        
+        val defaultExts = setOf("mp4", "mkv", "mp3", "webm", "3gp", "avi", "mov", "flv", "wmv", "m4v", "aac", "wav", "flac")
+        val savedExts = prefs.getStringSet("extensions", null)
+        
+        val exts = if (savedExts != null) {
+            (savedExts + defaultExts).toList()
+        } else {
+            defaultExts.toList()
+        }
+        
         _extensions.value = exts
     }
 

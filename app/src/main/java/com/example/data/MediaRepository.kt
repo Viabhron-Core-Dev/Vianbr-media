@@ -130,7 +130,7 @@ class MediaRepository(private val context: Context) {
                         val ext = name.substringAfterLast('.', "").lowercase()
                         if (extensions.contains(ext) || (ext.isEmpty() && mimeType.startsWith("video/"))) {
                             val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                            val mediaType = if (mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi")) MediaType.VIDEO else MediaType.AUDIO
+                            val mediaType = if (mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v")) MediaType.VIDEO else MediaType.AUDIO
                             mediaItems.add(MediaItem(docId.hashCode().toLong(), uri, name, size, 0L, date, mediaType, false))
                         } else if (ext in listOf("srt", "vtt", "ass", "sub")) {
                             subtitleFiles.add(name.substringBeforeLast('.').lowercase())

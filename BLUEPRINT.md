@@ -172,7 +172,9 @@
   - Folder grouping data model `MediaFolder` designed and pushed to the ViewModel.
   - Companion subtitle files matching (`.srt`, `.vtt`, `.ass`, `.sub`) cross-referenced by filename during directory scans.
   - Asynchronous MediaMetadataRetriever mechanism put in place to safely extract timestamps/duration for each video.
-* **Phase 4 Update**:
+* **Phase 4 Complete**:
   - Deployed dynamic folder layouts on `MainScreen` closely mimicking the requested MX Player / Next Player list layout style.
   - Implemented back-navigation state via Compose to transition gracefully between the main library Folder List and the Media Listing inside the respective folders.
+  - Added Long-press Multi-selection mode (`isMultiSelectMode`) on Media Items leveraging `combinedClickable`.
+  - Constructed the context action menu in `TopAppBar` appearing dynamically during multi-selection, exposing Play, Actions, Delete, Add to Playlist, and Options handling via Toasts for Phase 10 implementation down the line.
 

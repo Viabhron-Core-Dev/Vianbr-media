@@ -1,7 +1,9 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +12,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -18,14 +26,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.MediaFolder
+import com.example.data.MediaItem
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(onNavigateToSettings: () -> Unit) {
     val viewModel: MediaViewModel = viewModel()
@@ -33,21 +44,52 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
     val isLoading by viewModel.isLoading.collectAsState()
 
     var selectedFolder by remember { mutableStateOf<MediaFolder?>(null) }
+    val selectedMediaItems = remember { mutableStateListOf<MediaItem>() }
+    val isMultiSelectMode = selectedMediaItems.isNotEmpty()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(selectedFolder?.name ?: "Vianbr Play") },
+                title = { 
+                    if (isMultiSelectMode) {
+                        Text("${selectedMediaItems.size} Selected")
+                    } else {
+                        Text(selectedFolder?.name ?: "Vianbr Play")
+                    }
+                },
                 navigationIcon = {
-                    if (selectedFolder != null) {
+                    if (isMultiSelectMode) {
+                        IconButton(onClick = { selectedMediaItems.clear() }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Clear Selection")
+                        }
+                    } else if (selectedFolder != null) {
                         IconButton(onClick = { selectedFolder = null }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     }
                 },
                 actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    if (isMultiSelectMode) {
+                        IconButton(onClick = { Toast.makeText(context, "Play selected", Toast.LENGTH_SHORT).show() }) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
+                        }
+                        IconButton(onClick = { Toast.makeText(context, "Add to Playlist", Toast.LENGTH_SHORT).show() }) {
+                            Icon(Icons.Filled.PlaylistAdd, contentDescription = "Add to Playlist")
+                        }
+                        IconButton(onClick = { Toast.makeText(context, "Delete selected", Toast.LENGTH_SHORT).show() }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                        }
+                        IconButton(onClick = { Toast.makeText(context, "Rename selected", Toast.LENGTH_SHORT).show() }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Rename")
+                        }
+                        IconButton(onClick = { Toast.makeText(context, "More options", Toast.LENGTH_SHORT).show() }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "Options")
+                        }
+                    } else {
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        }
                     }
                 }
             )
@@ -109,20 +151,43 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                                 )
                             }
                             items(folder.mediaItems) { media ->
+                                val isSelected = selectedMediaItems.contains(media)
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(bottom = 8.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .combinedClickable(
+                                            onClick = {
+                                                if (isMultiSelectMode) {
+                                                    if (isSelected) selectedMediaItems.remove(media) else selectedMediaItems.add(media)
+                                                } else {
+                                                    Toast.makeText(context, "Play ${media.name}", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            onLongClick = {
+                                                if (!isMultiSelectMode) {
+                                                    selectedMediaItems.add(media)
+                                                }
+                                            }
+                                        ),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                    )
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
-                                        Text(text = media.name, style = MaterialTheme.typography.bodyMedium)
+                                        Text(
+                                            text = media.name, 
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                        )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         val durationStr = if (media.duration > 0) " | ${media.duration / 1000}s" else ""
                                         val subtitleStr = if (media.hasSubtitle) " | [CC]" else ""
                                         Text(
                                             text = "Type: ${media.mediaType} | Size: ${media.size / 1024 / 1024} MB$durationStr$subtitleStr",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
