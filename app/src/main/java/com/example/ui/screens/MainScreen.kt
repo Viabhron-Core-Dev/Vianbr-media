@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +35,9 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.decode.VideoFrameDecoder
 import com.example.data.MediaFolder
 import com.example.data.MediaItem
 
@@ -53,7 +58,7 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
             TopAppBar(
                 title = { 
                     if (isMultiSelectMode) {
-                        Text("${selectedMediaItems.size} Selected")
+                        Text("${selectedMediaItems.size}/${selectedFolder?.mediaItems?.size ?: 0} Selected")
                     } else {
                         Text(selectedFolder?.name ?: "Vianbr Play")
                     }
@@ -77,15 +82,6 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                         IconButton(onClick = { Toast.makeText(context, "Add to Playlist", Toast.LENGTH_SHORT).show() }) {
                             Icon(Icons.Filled.PlaylistAdd, contentDescription = "Add to Playlist")
                         }
-                        IconButton(onClick = { Toast.makeText(context, "Delete selected", Toast.LENGTH_SHORT).show() }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Delete")
-                        }
-                        IconButton(onClick = { Toast.makeText(context, "Rename selected", Toast.LENGTH_SHORT).show() }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Rename")
-                        }
-                        IconButton(onClick = { Toast.makeText(context, "More options", Toast.LENGTH_SHORT).show() }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "Options")
-                        }
                     } else {
                         IconButton(onClick = onNavigateToSettings) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings")
@@ -93,6 +89,25 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                     }
                 }
             )
+        },
+        bottomBar = {
+            if (isMultiSelectMode) {
+                BottomAppBar {
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = { Toast.makeText(context, "Rename selected", Toast.LENGTH_SHORT).show() }) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Rename")
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = { Toast.makeText(context, "Properties", Toast.LENGTH_SHORT).show() }) {
+                        Icon(Icons.Filled.Info, contentDescription = "Properties")
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = { Toast.makeText(context, "Delete selected", Toast.LENGTH_SHORT).show() }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     ) { paddingValues ->
         Box(
@@ -175,20 +190,47 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                                         containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        Text(
-                                            text = media.name, 
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        val durationStr = if (media.duration > 0) " | ${media.duration / 1000}s" else ""
-                                        val subtitleStr = if (media.hasSubtitle) " | [CC]" else ""
-                                        Text(
-                                            text = "Type: ${media.mediaType} | Size: ${media.size / 1024 / 1024} MB$durationStr$subtitleStr",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(80.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.surface)
+                                        ) {
+                                            AsyncImage(
+                                                model = ImageRequest.Builder(context)
+                                                    .data(media.uri)
+                                                    .decoderFactory(VideoFrameDecoder.Factory())
+                                                    .crossfade(true)
+                                                    .build(),
+                                                contentDescription = "Thumbnail",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = media.name, 
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            val durationSeconds = media.duration / 1000
+                                            val durationStr = if (durationSeconds > 0) {
+                                                val m = durationSeconds / 60
+                                                val s = durationSeconds % 60
+                                                " | ${m}m ${s}s"
+                                            } else ""
+                                            val subtitleStr = if (media.hasSubtitle) " | [CC]" else ""
+                                            Text(
+                                                text = "Size: ${media.size / 1024 / 1024} MB$durationStr$subtitleStr",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
                             }
