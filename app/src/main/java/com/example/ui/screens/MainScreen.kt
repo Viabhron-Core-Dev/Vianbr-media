@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -59,6 +60,13 @@ fun MainScreen(
     val selectedMediaItems = remember { mutableStateListOf<MediaItem>() }
     val isMultiSelectMode = selectedMediaItems.isNotEmpty()
     val context = LocalContext.current
+
+    BackHandler(enabled = isMultiSelectMode) {
+        selectedMediaItems.clear()
+    }
+    BackHandler(enabled = !isMultiSelectMode && selectedFolder != null) {
+        selectedFolder = null
+    }
 
     Scaffold(
         topBar = {

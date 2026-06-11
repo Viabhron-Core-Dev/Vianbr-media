@@ -5,6 +5,8 @@ import android.net.Uri
 import android.util.Log
 import android.provider.DocumentsContract
 
+import com.example.LogKeeper
+
 enum class PlaybackTag {
     NEW, UNSEEN, SEEN, PLAYING
 }
@@ -70,7 +72,7 @@ class MediaRepository(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.e("MediaRepository", "Error fetching MediaStore durations: ${e.message}")
+            LogKeeper.logError("MediaRepository", "Error fetching MediaStore durations: ${e.message}", e)
         }
 
         for (treeUri in folderUris) {
@@ -79,7 +81,7 @@ class MediaRepository(private val context: Context) {
                 val rootName = rootDocId.substringAfterLast('/', rootDocId.substringAfterLast(':'))
                 scanDirectoryForFolders(treeUri, rootDocId, rootName, rootDocId, exts, folders, scannedDocIds, durationMap)
             } catch (e: Exception) {
-                Log.e("MediaRepository", "Error accessing tree: ${treeUri}, ${e.message}")
+                LogKeeper.logError("MediaRepository", "Error accessing tree: ${treeUri}, ${e.message}", e)
             }
         }
 
@@ -144,7 +146,7 @@ class MediaRepository(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.e("MediaRepository", "Error scanning dir: ${documentId}, ${e.message}")
+            LogKeeper.logError("MediaRepository", "Error scanning dir: ${documentId}, ${e.message}", e)
         }
 
         if (mediaItems.isNotEmpty()) {
@@ -166,8 +168,7 @@ class MediaRepository(private val context: Context) {
             folders.add(MediaFolder(documentId, folderName, folderPath, latestDate, updatedItems.sortedByDescending { it.dateAdded }))
         }
 
-        for ((subDocId, subName) in subDirs) {
-            scanDirectoryForFolders(treeUri, subDocId, subName, "$folderPath/$subName", extensions, folders, scannedDocIds, durationMap)
-        }
+        // Non-recursive: do not scan sub-directories
+        // Removed subDirs loop per Alternative A
     }
 }

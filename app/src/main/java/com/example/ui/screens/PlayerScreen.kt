@@ -43,13 +43,19 @@ fun PlayerScreen(
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
 
     LaunchedEffect(uriString) {
-        val decodedUri = Uri.parse(Uri.decode(uriString))
+        val decodedUri = Uri.parse(uriString)
+        com.example.LogKeeper.log("Starting player for $decodedUri", "PlayerScreen")
         val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         
         controllerFuture.addListener({
             val controller = controllerFuture.get()
             mediaController = controller
+            controller.addListener(object : androidx.media3.common.Player.Listener {
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    com.example.LogKeeper.logError("PlayerScreen", "ExoPlayer Error: ${error.message}", error)
+                }
+            })
             controller.setMediaItem(MediaItem.fromUri(decodedUri))
             controller.prepare()
             controller.playWhenReady = true
