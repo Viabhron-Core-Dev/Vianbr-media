@@ -5,6 +5,10 @@ import android.net.Uri
 import android.util.Log
 import android.provider.DocumentsContract
 
+enum class PlaybackTag {
+    NEW, UNSEEN, SEEN, PLAYING
+}
+
 data class MediaItem(
     val id: Long,
     val uri: Uri,
@@ -13,7 +17,8 @@ data class MediaItem(
     val duration: Long, // in milliseconds
     val dateAdded: Long,
     val mediaType: MediaType,
-    val hasSubtitle: Boolean = false
+    val hasSubtitle: Boolean = false,
+    val tag: PlaybackTag = PlaybackTag.NEW
 )
 
 data class MediaFolder(
@@ -143,14 +148,20 @@ class MediaRepository(private val context: Context) {
         }
 
         if (mediaItems.isNotEmpty()) {
+            val currentTime = System.currentTimeMillis()
+            val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
+            
             val updatedItems = mediaItems.map { item ->
                 val baseName = item.name.substringBeforeLast('.').lowercase()
                 val hasSub = subtitleFiles.contains(baseName)
                 
                 // Extract duration safely from map
                 val duration = durationMap["${item.name}_${item.size}"] ?: 0L
+                
+                // Assign NEW if added in last 15 days, else UNSEEN
+                val tag = if (currentTime - item.dateAdded < fifteenDaysMs) PlaybackTag.NEW else PlaybackTag.UNSEEN
 
-                item.copy(hasSubtitle = hasSub, duration = duration)
+                item.copy(hasSubtitle = hasSub, duration = duration, tag = tag)
             }
             folders.add(MediaFolder(documentId, folderName, folderPath, latestDate, updatedItems.sortedByDescending { it.dateAdded }))
         }

@@ -10,6 +10,10 @@ import com.example.data.SettingsManager
 import com.example.ui.screens.MainScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.WelcomeScreen
+import com.example.ui.screens.PlayerScreen
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import android.net.Uri
 
 @Composable
 fun AppNavigation() {
@@ -32,11 +36,25 @@ fun AppNavigation() {
             MainScreen(
                 onNavigateToSettings = {
                     navController.navigate("settings")
+                },
+                onNavigateToPlayer = { uri ->
+                    val encodedUri = Uri.encode(uri)
+                    navController.navigate("player/$encodedUri")
                 }
             )
         }
         composable("settings") {
             SettingsScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = "player/{uri}",
+            arguments = listOf(navArgument("uri") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val uriString = backStackEntry.arguments?.getString("uri") ?: ""
+            PlayerScreen(
+                uriString = uriString,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

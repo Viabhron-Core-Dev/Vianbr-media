@@ -179,4 +179,12 @@
   - Constructed the Contextual `TopAppBar` appearing dynamically during multi-selection showing total files selected (e.g. `2/10 Selected`) with Play and Add to Playlist actions.
   - Constructed a `BottomAppBar` containing file properties, renaming and deleting functions during multi-selection mode.
   - Integrated `coil` and `coil-video` with `VideoFrameDecoder` to display real video thumbnail frame extracts inside media item cards.
+  - Forced default Light Theme for clean MX Player aesthetic.
+  - Added programmatic tagging framework (`PlaybackTag`: `NEW`, `UNSEEN`, `SEEN`) where media < 15 days old receives a `NEW` badge overlaid on thumbnails, dynamically formatting list item typography to represent its state.
+  - Hooked a "Mark as..." context action locally in the `BottomAppBar` to allow batch changing of tags in multi-select mode.
+* **Phase 5 Complete**:
+  - Wired `androidx.media3` dependencies into Gradle properties and catalog.
+  - Designed `PlaybackService` leveraging `MediaSessionService` to anchor native ExoPlayer background capabilities.
+  - Created the ExoPlayer integration `PlayerScreen` view, routing heavily off `MediaController` callbacks to parse the explicit SAF file URI.
+  - Integrated `setPictureInPictureParams()` native hooks for Android 12+ (S) ensuring the application automatically enters PiP layout transitions on home swipe or task backgrounding.
 
