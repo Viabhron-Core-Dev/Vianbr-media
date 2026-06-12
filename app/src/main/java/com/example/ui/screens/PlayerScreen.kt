@@ -78,8 +78,22 @@ fun PlayerScreen(
         }, ContextCompat.getMainExecutor(context))
     }
 
-    DisposableEffect(Unit) {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner, mediaController) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                mediaController?.let { controller ->
+                    val currentPosition = controller.currentPosition
+                    val duration = controller.duration
+                    com.example.data.SettingsManager.getInstance(context).savePlaybackState(uriString, currentPosition, duration)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 context.findActivity()?.setPictureInPictureParams(
                     PictureInPictureParams.Builder()

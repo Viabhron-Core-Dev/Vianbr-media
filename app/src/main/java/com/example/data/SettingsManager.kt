@@ -69,11 +69,11 @@ class SettingsManager private constructor(context: Context) {
         return prefs.getLong("dur_$uri", -1L)
     }
 
-    // A video is finished if we watched past 90%
+    // A video is finished if we watched past 99%
     fun isFinished(uri: String): Boolean {
         val pos = getPlaybackPosition(uri)
         val dur = getStoredDuration(uri)
-        return if (dur > 0L) pos >= dur * 0.90 else false
+        return if (dur > 0L) pos >= dur * 0.99 else false
     }
 
     var hasSeenWelcome: Boolean
