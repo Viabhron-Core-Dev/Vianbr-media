@@ -54,6 +54,28 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putStringSet("extensions", exts.toSet()).apply()
     }
 
+    fun savePlaybackState(uri: String, position: Long, duration: Long) {
+        prefs.edit()
+            .putLong("pos_$uri", position)
+            .putLong("dur_$uri", duration)
+            .apply()
+    }
+
+    fun getPlaybackPosition(uri: String): Long {
+        return prefs.getLong("pos_$uri", 0L)
+    }
+
+    fun getStoredDuration(uri: String): Long {
+        return prefs.getLong("dur_$uri", -1L)
+    }
+
+    // A video is finished if we watched past 90%
+    fun isFinished(uri: String): Boolean {
+        val pos = getPlaybackPosition(uri)
+        val dur = getStoredDuration(uri)
+        return if (dur > 0L) pos >= dur * 0.90 else false
+    }
+
     var hasSeenWelcome: Boolean
         get() = prefs.getBoolean("has_seen_welcome", false)
         set(value) = prefs.edit().putBoolean("has_seen_welcome", value).apply()

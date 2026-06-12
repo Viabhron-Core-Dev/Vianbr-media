@@ -44,6 +44,7 @@ fun PlayerScreen(
 
     LaunchedEffect(uriString) {
         val decodedUri = Uri.parse(uriString)
+        val settingsManager = com.example.data.SettingsManager.getInstance(context)
         com.example.LogKeeper.log("Starting player for $decodedUri", "PlayerScreen")
         val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
@@ -58,6 +59,13 @@ fun PlayerScreen(
             })
             controller.setMediaItem(MediaItem.fromUri(decodedUri))
             controller.prepare()
+            
+            // Resume from last position if it exists and is not finished
+            val lastPos = settingsManager.getPlaybackPosition(uriString)
+            if (lastPos > 0 && !settingsManager.isFinished(uriString)) {
+                controller.seekTo(lastPos)
+            }
+            
             controller.playWhenReady = true
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -79,8 +87,13 @@ fun PlayerScreen(
                         .build()
                 )
             }
-            mediaController?.stop()
-            mediaController?.release()
+            mediaController?.let { controller ->
+                val currentPosition = controller.currentPosition
+                val duration = controller.duration
+                com.example.data.SettingsManager.getInstance(context).savePlaybackState(uriString, currentPosition, duration)
+                controller.stop()
+                controller.release()
+            }
         }
     }
 

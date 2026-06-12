@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +34,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.ui.unit.dp
@@ -56,16 +60,30 @@ fun MainScreen(
     val mediaFolders by viewModel.mediaFolders.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    var selectedFolder by remember { mutableStateOf<MediaFolder?>(null) }
+    var selectedFolderId by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedFolder = mediaFolders.find { it.id == selectedFolderId }
     val selectedMediaItems = remember { mutableStateListOf<MediaItem>() }
     val isMultiSelectMode = selectedMediaItems.isNotEmpty()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadMedia()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     BackHandler(enabled = isMultiSelectMode) {
         selectedMediaItems.clear()
     }
     BackHandler(enabled = !isMultiSelectMode && selectedFolder != null) {
-        selectedFolder = null
+        selectedFolderId = null
     }
 
     Scaffold(
@@ -84,7 +102,7 @@ fun MainScreen(
                             Icon(Icons.Filled.Close, contentDescription = "Clear Selection")
                         }
                     } else if (selectedFolder != null) {
-                        IconButton(onClick = { selectedFolder = null }) {
+                        IconButton(onClick = { selectedFolderId = null }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     }
@@ -166,7 +184,7 @@ fun MainScreen(
                             }
                             items(mediaFolders) { folder ->
                                 FolderCard(folder) {
-                                    selectedFolder = folder
+                                    selectedFolderId = folder.id
                                 }
                             }
                         }
@@ -328,29 +346,6 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit) {
                     modifier = Modifier.size(48.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
-                // Duration chip at bottom
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 4.dp)
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    val durationSeconds = folder.totalDuration / 1000
-                    val hours = durationSeconds / 3600
-                    val minutes = (durationSeconds % 3600) / 60
-                    val seconds = durationSeconds % 60
-                    val durationStr = if (hours > 0) {
-                        String.format("%d:%02d:%02d", hours, minutes, seconds)
-                    } else {
-                        String.format("%02d:%02d", minutes, seconds)
-                    }
-                    Text(
-                        text = durationStr,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White
-                    )
-                }
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {

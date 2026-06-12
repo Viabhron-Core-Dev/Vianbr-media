@@ -152,6 +152,7 @@ class MediaRepository(private val context: Context) {
         if (mediaItems.isNotEmpty()) {
             val currentTime = System.currentTimeMillis()
             val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
+            val settingsManager = SettingsManager.getInstance(context)
             
             val updatedItems = mediaItems.map { item ->
                 val baseName = item.name.substringBeforeLast('.').lowercase()
@@ -160,8 +161,17 @@ class MediaRepository(private val context: Context) {
                 // Extract duration safely from map
                 val duration = durationMap["${item.name}_${item.size}"] ?: 0L
                 
-                // Assign NEW if added in last 15 days, else UNSEEN
-                val tag = if (currentTime - item.dateAdded < fifteenDaysMs) PlaybackTag.NEW else PlaybackTag.UNSEEN
+                val uriStr = item.uri.toString()
+                val isFinished = settingsManager.isFinished(uriStr)
+                val playbackPos = settingsManager.getPlaybackPosition(uriStr)
+                
+                val tag = if (isFinished) {
+                    PlaybackTag.SEEN
+                } else if (playbackPos > 0L) {
+                    PlaybackTag.PLAYING
+                } else {
+                    if (currentTime - item.dateAdded < fifteenDaysMs) PlaybackTag.NEW else PlaybackTag.UNSEEN
+                }
 
                 item.copy(hasSubtitle = hasSub, duration = duration, tag = tag)
             }
