@@ -43,7 +43,8 @@ fun PlayerScreen(
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
 
     LaunchedEffect(uriString) {
-        val decodedUri = Uri.parse(uriString)
+        val decodedUriString = String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
+        val decodedUri = Uri.parse(decodedUriString)
         val settingsManager = com.example.data.SettingsManager.getInstance(context)
         com.example.LogKeeper.log("Starting player for $decodedUri", "PlayerScreen")
         val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -61,12 +62,12 @@ fun PlayerScreen(
             controller.prepare()
             
             // Resume from last position if it exists and is not finished
-            val lastPos = settingsManager.getPlaybackPosition(uriString)
-            if (lastPos > 0 && !settingsManager.isFinished(uriString)) {
+            val lastPos = settingsManager.getPlaybackPosition(decodedUriString)
+            if (lastPos > 0 && !settingsManager.isFinished(decodedUriString)) {
                 controller.seekTo(lastPos)
             }
             
-            controller.playWhenReady = true
+            controller.play()
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 context.findActivity()?.setPictureInPictureParams(
@@ -79,6 +80,7 @@ fun PlayerScreen(
     }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val decodedUriString = String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
 
     DisposableEffect(lifecycleOwner, mediaController) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -86,7 +88,7 @@ fun PlayerScreen(
                 mediaController?.let { controller ->
                     val currentPosition = controller.currentPosition
                     val duration = controller.duration
-                    com.example.data.SettingsManager.getInstance(context).savePlaybackState(uriString, currentPosition, duration)
+                    com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPosition, duration)
                 }
             }
         }
@@ -104,7 +106,7 @@ fun PlayerScreen(
             mediaController?.let { controller ->
                 val currentPosition = controller.currentPosition
                 val duration = controller.duration
-                com.example.data.SettingsManager.getInstance(context).savePlaybackState(uriString, currentPosition, duration)
+                com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPosition, duration)
                 controller.stop()
                 controller.release()
             }

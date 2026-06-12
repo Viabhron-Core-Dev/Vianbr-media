@@ -38,7 +38,7 @@ fun AppNavigation() {
                     navController.navigate("settings")
                 },
                 onNavigateToPlayer = { uri ->
-                    val encodedUri = Uri.encode(uri)
+                    val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("player/$encodedUri")
                 }
             )
