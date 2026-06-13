@@ -185,6 +185,12 @@
 * **Phase 5 Complete**:
   - Wired `androidx.media3` dependencies into Gradle properties and catalog.
   - Designed `PlaybackService` leveraging `MediaSessionService` to anchor native ExoPlayer background capabilities.
-  - Created the ExoPlayer integration `PlayerScreen` view, routing heavily off `MediaController` callbacks to parse the explicit SAF file URI.
+  - Created the ExoPlayer integration `PlayerScreen` view, routing heavily off `MediaController` callbacks to parse the explicit SAF file URI (using Base64 safe-encoding for Navigation routes).
   - Integrated `setPictureInPictureParams()` native hooks for Android 12+ (S) ensuring the application automatically enters PiP layout transitions on home swipe or task backgrounding.
+  - Hooked playback state tracking (`currentPosition`, `duration`) into `SettingsManager` to remember positions and mark videos as 'Seen' upon 99% completion.
 
+* **Phase 6 (Current / Pending)**:
+  - Implement full Player UI (transparent black overlays for out-of-the-way controls).
+  - Implement gesture controls for brightness, volume, and playback seeking.
+  - **Screen Orientation**: Add sensor-based landscape/portrait rotation switching in the player based on the video constraints and user rotation.
+  - Future refinement of non-functional Context Menu actions from Phase 4 (Rename, Delete, Properties, Add to Playlist).

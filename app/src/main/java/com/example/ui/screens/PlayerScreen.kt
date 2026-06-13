@@ -27,6 +27,12 @@ import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
 import com.example.service.PlaybackService
 
+import android.content.pm.ActivityInfo
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.media3.common.VideoSize
+
 fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
@@ -40,7 +46,25 @@ fun PlayerScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val activity = context.findActivity()
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
+
+    DisposableEffect(Unit) {
+        val window = activity?.window
+        if (window != null) {
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            val window = activity?.window
+            if (window != null) {
+                val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+                insetsController.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
 
     LaunchedEffect(uriString) {
         val decodedUriString = String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
@@ -57,8 +81,17 @@ fun PlayerScreen(
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     com.example.LogKeeper.logError("PlayerScreen", "ExoPlayer Error: ${error.message}", error)
                 }
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    if (videoSize.width > 0 && videoSize.height > 0) {
+                        activity?.requestedOrientation = if (videoSize.width > videoSize.height) {
+                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        } else {
+                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                        }
+                    }
+                }
             })
-            controller.setMediaItem(MediaItem.fromUri(decodedUri))
+            controller.setMediaItem(MediaItem.Builder().setMediaId(decodedUri.toString()).build())
             controller.prepare()
             
             // Resume from last position if it exists and is not finished
