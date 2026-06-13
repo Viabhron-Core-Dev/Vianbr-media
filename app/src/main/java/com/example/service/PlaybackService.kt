@@ -20,6 +20,23 @@ class PlaybackService : MediaSessionService() {
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
             
+        player.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                val cause = error.cause?.message ?: "Unknown"
+                com.example.LogKeeper.logError("PlaybackService", "Error: ${error.errorCodeName} - ${error.message} - Cause: $cause", error)
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                val stateName = when (playbackState) {
+                    androidx.media3.common.Player.STATE_IDLE -> "STATE_IDLE"
+                    androidx.media3.common.Player.STATE_BUFFERING -> "STATE_BUFFERING"
+                    androidx.media3.common.Player.STATE_READY -> "STATE_READY"
+                    androidx.media3.common.Player.STATE_ENDED -> "STATE_ENDED"
+                    else -> "UNKNOWN"
+                }
+                com.example.LogKeeper.log("Playback state changed to: $stateName", "PlaybackService")
+            }
+        })
+
         mediaSession = MediaSession.Builder(this, player)
             .setCallback(object : MediaSession.Callback {
                 override fun onAddMediaItems(
@@ -27,9 +44,12 @@ class PlaybackService : MediaSessionService() {
                     controller: MediaSession.ControllerInfo,
                     mediaItems: List<MediaItem>
                 ): ListenableFuture<List<MediaItem>> {
+                    com.example.LogKeeper.log("onAddMediaItems called with ${mediaItems.size} items", "PlaybackService")
                     val updatedMediaItems = mediaItems.map { mediaItem ->
+                        val uriStr = mediaItem.mediaId
+                        com.example.LogKeeper.log("Transforming mediaItem mediaId to URI: $uriStr", "PlaybackService")
                         mediaItem.buildUpon()
-                            .setUri(mediaItem.mediaId)
+                            .setUri(uriStr)
                             .build()
                     }
                     return Futures.immediateFuture(updatedMediaItems)

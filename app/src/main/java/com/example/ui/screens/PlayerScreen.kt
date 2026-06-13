@@ -116,9 +116,10 @@ fun PlayerScreen(
     val decodedUriString = String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
 
     DisposableEffect(lifecycleOwner, mediaController) {
+        val currentController = mediaController
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                mediaController?.let { controller ->
+                currentController?.let { controller ->
                     val currentPosition = controller.currentPosition
                     val duration = controller.duration
                     com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPosition, duration)
@@ -136,7 +137,7 @@ fun PlayerScreen(
                         .build()
                 )
             }
-            mediaController?.let { controller ->
+            currentController?.let { controller ->
                 val currentPosition = controller.currentPosition
                 val duration = controller.duration
                 com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPosition, duration)
