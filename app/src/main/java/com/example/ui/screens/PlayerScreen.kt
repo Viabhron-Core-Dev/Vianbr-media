@@ -9,6 +9,9 @@ import android.net.Uri
 import android.os.Build
 import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -48,21 +51,11 @@ fun PlayerScreen(
     val context = LocalContext.current
     val activity = context.findActivity()
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    var playerView by remember { mutableStateOf<PlayerView?>(null) }
 
     DisposableEffect(Unit) {
-        val window = activity?.window
-        if (window != null) {
-            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            insetsController.hide(WindowInsetsCompat.Type.systemBars())
-        }
         onDispose {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            val window = activity?.window
-            if (window != null) {
-                val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-                insetsController.show(WindowInsetsCompat.Type.systemBars())
-            }
         }
     }
 
@@ -147,18 +140,62 @@ fun PlayerScreen(
         }
     }
 
-    AndroidView(
-        factory = { ctx ->
-            PlayerView(ctx).apply {
-                useController = true
-                setShowNextButton(false)
-                setShowPreviousButton(false)
-            }
-        },
-        update = { view ->
-            view.player = mediaController
-        },
-        modifier = Modifier.fillMaxSize()
-    )
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .pointerInput(mediaController, playerView) {
+            detectTapGestures(
+                onDoubleTap = {
+                    mediaController?.let { controller ->
+                        if (controller.isPlaying) {
+                            controller.pause()
+                        } else {
+                            controller.play()
+                        }
+                    }
+                },
+                onTap = {
+                    playerView?.let { pv ->
+                        if (pv.isControllerFullyVisible) {
+                            pv.hideController()
+                        } else {
+                            pv.showController()
+                        }
+                    }
+                }
+            )
+        }
+    ) {
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    playerView = this
+                    useController = true
+                    setShowNextButton(false)
+                    setShowPreviousButton(false)
+                    setShowFastForwardButton(false)
+                    setShowRewindButton(false)
+                    
+                    val centerControlsId = resources.getIdentifier("exo_center_controls", "id", ctx.packageName)
+                    if (centerControlsId != 0) {
+                        findViewById<android.view.View>(centerControlsId)?.visibility = android.view.View.GONE
+                    } else {
+                        findViewById<android.view.View>(androidx.media3.ui.R.id.exo_play)?.visibility = android.view.View.GONE
+                        findViewById<android.view.View>(androidx.media3.ui.R.id.exo_pause)?.visibility = android.view.View.GONE
+                        findViewById<android.view.View>(androidx.media3.ui.R.id.exo_rew)?.visibility = android.view.View.GONE
+                        findViewById<android.view.View>(androidx.media3.ui.R.id.exo_ffwd)?.visibility = android.view.View.GONE
+                        findViewById<android.view.View>(androidx.media3.ui.R.id.exo_rew_with_amount)?.visibility = android.view.View.GONE
+                        findViewById<android.view.View>(androidx.media3.ui.R.id.exo_ffwd_with_amount)?.visibility = android.view.View.GONE
+                    }
+                    
+                    // Prevent PlayerView from handling system UI, so that status/nav bars stay visible
+                    setControllerHideOnTouch(false)
+                }
+            },
+            update = { view ->
+                view.player = mediaController
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
 }
 
