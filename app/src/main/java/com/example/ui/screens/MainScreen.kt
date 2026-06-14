@@ -335,7 +335,7 @@ fun MainScreen(
                                                 text = media.name, 
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Normal,
-                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (media.tag == PlaybackTag.SEEN || media.tag == PlaybackTag.PLAYING) Color.LightGray else MaterialTheme.colorScheme.onSurface,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (media.tag == PlaybackTag.SEEN || media.tag == PlaybackTag.PLAYING) Color(0xFF707070) else MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis
                                             )
