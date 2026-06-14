@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
 import android.os.Build
+import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -65,6 +66,18 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material3.Switch
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -158,6 +171,15 @@ fun PlayerScreen(
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
+    var backgroundPlayEnabled by remember { mutableStateOf(false) }
+    val backgroundPlayEnabledRef = androidx.compose.runtime.rememberUpdatedState(backgroundPlayEnabled)
+    var playbackSpeed by remember { mutableFloatStateOf(1f) }
+    var skipSilence by remember { mutableStateOf(false) }
+    var showSpeedDialog by remember { mutableStateOf(false) }
+    var showAudioDialog by remember { mutableStateOf(false) }
+    var showSubtitleDialog by remember { mutableStateOf(false) }
+    val playerViewRef = remember { mutableStateOf<PlayerView?>(null) }
+    val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
 
     LaunchedEffect(showControls) {
         val window = context.findActivity()?.window
@@ -225,12 +247,14 @@ fun PlayerScreen(
                     }
                 }
             })
-            controller.setMediaItem(MediaItem.Builder().setMediaId(decodedUri.toString()).build())
-            controller.prepare()
-            
-            val lastPos = settingsManager.getPlaybackPosition(decodedUriString)
-            if (lastPos > 0 && !settingsManager.isFinished(decodedUriString)) {
-                controller.seekTo(lastPos)
+            if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
+                controller.setMediaItem(MediaItem.Builder().setMediaId(decodedUri.toString()).build())
+                controller.prepare()
+                
+                val lastPos = settingsManager.getPlaybackPosition(decodedUriString)
+                if (lastPos > 0 && !settingsManager.isFinished(decodedUriString)) {
+                    controller.seekTo(lastPos)
+                }
             }
             
             controller.play()
@@ -274,9 +298,24 @@ fun PlayerScreen(
                 val currentPos = controller.currentPosition
                 val dur = controller.duration
                 com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPos, dur)
-                controller.stop()
+                if (!backgroundPlayEnabledRef.value) {
+                    controller.stop()
+                }
                 controller.release()
             }
+        }
+    }
+
+    var isInPipMode by remember { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner) {
+        val activity = context.findActivity() as? androidx.activity.ComponentActivity
+        val pipListener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { info ->
+            isInPipMode = info.isInPictureInPictureMode
+        }
+        activity?.addOnPictureInPictureModeChangedListener(pipListener)
+        onDispose {
+            activity?.removeOnPictureInPictureModeChangedListener(pipListener)
         }
     }
 
@@ -389,9 +428,9 @@ fun PlayerScreen(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     useController = false
-                    // Prevent layout shifting when system bars show/hide
                     fitsSystemWindows = false
-                    setOnApplyWindowInsetsListener { _, insets -> insets } 
+                    setOnApplyWindowInsetsListener { _, insets -> insets }
+                    playerViewRef.value = this
                 }
             },
             update = { view ->
@@ -406,7 +445,7 @@ fun PlayerScreen(
             }
         )
 
-        if (activeGesture != GestureType.NONE) {
+        if (activeGesture != GestureType.NONE && !isInPipMode) {
             if (activeGesture == GestureType.VOLUME) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
                     Column(
@@ -448,7 +487,7 @@ fun PlayerScreen(
         }
 
         androidx.compose.animation.AnimatedVisibility(
-            visible = !showControls,
+            visible = !showControls && !isInPipMode,
             enter = androidx.compose.animation.fadeIn(),
             exit = androidx.compose.animation.fadeOut(),
             modifier = Modifier.align(Alignment.TopEnd)
@@ -482,7 +521,7 @@ fun PlayerScreen(
         }
 
         androidx.compose.animation.AnimatedVisibility(
-            visible = showControls,
+            visible = showControls && !isInPipMode,
             enter = androidx.compose.animation.fadeIn(),
             exit = androidx.compose.animation.fadeOut(),
             modifier = Modifier.fillMaxSize()
@@ -532,17 +571,47 @@ fun PlayerScreen(
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
                             )
-                            IconButton(onClick = { /* Speed */ }) {
-                                Icon(Icons.Filled.Speed, contentDescription = "Speed", tint = Color.White)
+                            IconButton(onClick = { 
+                                showSpeedDialog = true
+                            }) {
+                                Icon(Icons.Filled.Speed, contentDescription = "Speed", tint = if (playbackSpeed != 1f) Color(0xFF2196F3) else Color.White)
                             }
-                            IconButton(onClick = { /* Audio */ }) {
+                            IconButton(onClick = { showAudioDialog = true }) {
                                 Icon(Icons.Filled.Headphones, contentDescription = "Audio track", tint = Color.White)
                             }
-                            IconButton(onClick = { /* Subtitle */ }) {
+                            IconButton(onClick = { showSubtitleDialog = true }) {
                                 Icon(Icons.Filled.Subtitles, contentDescription = "Subtitles", tint = Color.White)
                             }
-                            IconButton(onClick = { /* More */ }) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = Color.White)
+                            IconButton(onClick = { 
+                                val surfaceView = playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView
+                                if (surfaceView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                    val bitmap = android.graphics.Bitmap.createBitmap(surfaceView.width, surfaceView.height, android.graphics.Bitmap.Config.ARGB_8888)
+                                    android.view.PixelCopy.request(surfaceView, bitmap, { result ->
+                                        if (result == android.view.PixelCopy.SUCCESS) {
+                                            val filename = "Screenshot_${System.currentTimeMillis()}.png"
+                                            val values = android.content.ContentValues().apply {
+                                                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                                                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
+                                                }
+                                            }
+                                            val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                                            uri?.let {
+                                                context.contentResolver.openOutputStream(it)?.use { out ->
+                                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                                                }
+                                                Toast.makeText(context, "Screenshot saved to Photos", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Screenshot failed (PixelCopy error)", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }, android.os.Handler(android.os.Looper.getMainLooper()))
+                                } else {
+                                    Toast.makeText(context, "Screenshot failed: Surface not ready or unsupported OS", Toast.LENGTH_SHORT).show()
+                                }
+                            }) {
+                                Icon(Icons.Filled.Screenshot, contentDescription = "Screenshot", tint = Color.White)
                             }
                         }
                         
@@ -572,8 +641,11 @@ fun PlayerScreen(
                             }) {
                                 Icon(Icons.Filled.ScreenRotation, contentDescription = "Rotation", tint = Color.White)
                             }
-                            IconButton(onClick = { /* Background play */ }) {
-                                Icon(Icons.Filled.Headphones, contentDescription = "Background play", tint = Color.White)
+                            IconButton(onClick = { 
+                                backgroundPlayEnabled = !backgroundPlayEnabled
+                                Toast.makeText(context, "Background play " + if (backgroundPlayEnabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Icon(Icons.Filled.Headphones, contentDescription = "Background play", tint = if (backgroundPlayEnabled) Color(0xFF2196F3) else Color.White)
                             }
                         }
                     }
@@ -708,6 +780,243 @@ fun PlayerScreen(
                                 Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "PiP", tint = Color.White)
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAudioDialog) {
+        Dialog(onDismissRequest = { showAudioDialog = false }) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    val currentTracks = mediaController?.currentTracks
+                    val audioGroups = currentTracks?.groups?.filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO } ?: emptyList()
+                    
+                    if (audioGroups.isEmpty()) {
+                        Text("No audio tracks available", style = MaterialTheme.typography.bodyLarge)
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn {
+                            items(audioGroups.size) { groupIndex ->
+                                val group = audioGroups[groupIndex]
+                                for (trackIndex in 0 until group.length) {
+                                    val format = group.getTrackFormat(trackIndex)
+                                    val isSelected = group.isSelected
+                                    val title = format.language ?: format.label ?: "Track ${trackIndex + 1}"
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().clickable {
+                                            val builder = mediaController?.trackSelectionParameters?.buildUpon()
+                                            builder?.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
+                                            builder?.let { mediaController?.trackSelectionParameters = it.build() }
+                                            showAudioDialog = false
+                                        }.padding(vertical = 12.dp)
+                                    ) {
+                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        androidx.compose.material3.TextButton(onClick = { showAudioDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSubtitleDialog) {
+        Dialog(onDismissRequest = { showSubtitleDialog = false }) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text("Select Subtitles", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    val currentTracks = mediaController?.currentTracks
+                    val textGroups = currentTracks?.groups?.filter { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT } ?: emptyList()
+                    val trackSelectionParameters = mediaController?.trackSelectionParameters
+                    val isTextDisabled = trackSelectionParameters?.disabledTrackTypes?.contains(androidx.media3.common.C.TRACK_TYPE_TEXT) ?: false
+                    
+                    if (textGroups.isEmpty()) {
+                        Text("No subtitles available", style = MaterialTheme.typography.bodyLarge)
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn {
+                            item {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        val builder = mediaController?.trackSelectionParameters?.buildUpon()
+                                        builder?.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
+                                        builder?.clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
+                                        builder?.let { mediaController?.trackSelectionParameters = it.build() }
+                                        showSubtitleDialog = false
+                                    }.padding(vertical = 12.dp)
+                                ) {
+                                    Text("Off", fontWeight = if (isTextDisabled) FontWeight.Bold else FontWeight.Normal, color = if (isTextDisabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            
+                            items(textGroups.size) { groupIndex ->
+                                val group = textGroups[groupIndex]
+                                for (trackIndex in 0 until group.length) {
+                                    val format = group.getTrackFormat(trackIndex)
+                                    val isSelected = !isTextDisabled && group.isSelected
+                                    val title = format.language ?: format.label ?: "Track ${trackIndex + 1}"
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().clickable {
+                                            val builder = mediaController?.trackSelectionParameters?.buildUpon()
+                                            builder?.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                                            builder?.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
+                                            builder?.let { mediaController?.trackSelectionParameters = it.build() }
+                                            showSubtitleDialog = false
+                                        }.padding(vertical = 12.dp)
+                                    ) {
+                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        androidx.compose.material3.TextButton(onClick = { showSubtitleDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSpeedDialog) {
+        Dialog(onDismissRequest = { showSpeedDialog = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Select playback speed", style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        IconButton(
+                            onClick = { 
+                                val newSpeed = maxOf(0.1f, playbackSpeed - 0.1f)
+                                playbackSpeed = Math.round(newSpeed * 10.0f) / 10.0f
+                                mediaController?.setPlaybackSpeed(playbackSpeed)
+                            },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                        ) {
+                            Icon(Icons.Filled.Remove, contentDescription = "Decrease")
+                        }
+                        
+                        Text(String.format("%.1f", playbackSpeed), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        
+                        IconButton(
+                            onClick = { 
+                                val newSpeed = minOf(3.0f, playbackSpeed + 0.1f)
+                                playbackSpeed = Math.round(newSpeed * 10.0f) / 10.0f
+                                mediaController?.setPlaybackSpeed(playbackSpeed)
+                            },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = "Increase")
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Slider(
+                            value = playbackSpeed,
+                            onValueChange = { 
+                                playbackSpeed = Math.round(it * 10.0f) / 10.0f
+                                mediaController?.setPlaybackSpeed(playbackSpeed)
+                            },
+                            valueRange = 0.1f..3.0f,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { 
+                            playbackSpeed = 1.0f
+                            mediaController?.setPlaybackSpeed(playbackSpeed)
+                        }) {
+                            Icon(Icons.Filled.Restore, contentDescription = "Reset")
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        val predefinedSpeeds = listOf(0.2f, 0.5f, 1.0f, 1.5f, 2.0f, 2.5f, 3.0f)
+                        predefinedSpeeds.forEach { speed ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        playbackSpeed = speed
+                                        mediaController?.setPlaybackSpeed(playbackSpeed)
+                                    }
+                                    .border(1.dp, if (playbackSpeed == speed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, CircleShape)
+                                    .background(if (playbackSpeed == speed) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("${speed}x", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Skip silence", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Switch(
+                            checked = skipSilence,
+                            onCheckedChange = { 
+                                skipSilence = it
+                                // In Media3, use setSkipSilenceEnabled on Player
+                                try {
+                                    val method = mediaController?.javaClass?.getMethod("setSkipSilenceEnabled", Boolean::class.javaPrimitiveType)
+                                    method?.invoke(mediaController, skipSilence)
+                                } catch (e: Exception) {
+                                    // Ignore if not supported
+                                }
+                            }
+                        )
                     }
                 }
             }

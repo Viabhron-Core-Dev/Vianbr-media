@@ -23,7 +23,9 @@ import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -44,9 +46,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.widget.Toast
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.decode.VideoFrameDecoder
+import com.example.data.AppDatabase
+import com.example.data.Playlist
+import com.example.data.PlaylistItem
+import com.example.data.PlaylistRepository
+import kotlinx.coroutines.launch
 import com.example.data.MediaFolder
 import com.example.data.MediaItem
 import com.example.data.PlaybackTag
@@ -58,7 +66,8 @@ enum class SortOrder { NAME, DATE, SIZE }
 @Composable
 fun MainScreen(
     onNavigateToSettings: () -> Unit,
-    onNavigateToPlayer: (String) -> Unit = {}
+    onNavigateToPlayer: (String) -> Unit = {},
+    onNavigateToPlaylists: () -> Unit = {}
 ) {
     val viewModel: MediaViewModel = viewModel()
     val mediaFolders by viewModel.mediaFolders.collectAsState()
@@ -71,8 +80,17 @@ fun MainScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    val coroutineScope = rememberCoroutineScope()
+    val repository = remember {
+        val dao = AppDatabase.getDatabase(context).playlistDao()
+        PlaylistRepository(dao)
+    }
+    val playlists by repository.allPlaylists.collectAsStateWithLifecycle(initialValue = emptyList())
+
     var sortOrder by rememberSaveable { mutableStateOf(SortOrder.DATE) }
     var showSortMenu by remember { mutableStateOf(false) }
+    var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+    var showInfoDialog by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -116,10 +134,15 @@ fun MainScreen(
                 },
                 actions = {
                     if (isMultiSelectMode) {
-                        IconButton(onClick = { Toast.makeText(context, "Play selected", Toast.LENGTH_SHORT).show() }) {
+                        IconButton(onClick = { 
+                            if (selectedMediaItems.isNotEmpty()) {
+                                onNavigateToPlayer(selectedMediaItems.first().uri.toString())
+                                selectedMediaItems.clear()
+                            }
+                        }) {
                             Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
                         }
-                        IconButton(onClick = { Toast.makeText(context, "Add to Playlist", Toast.LENGTH_SHORT).show() }) {
+                        IconButton(onClick = { showAddToPlaylistDialog = true }) {
                             Icon(Icons.Filled.PlaylistAdd, contentDescription = "Add to Playlist")
                         }
                     } else {
@@ -133,6 +156,9 @@ fun MainScreen(
                                 DropdownMenuItem(text = { Text("Sort by Size") }, onClick = { sortOrder = SortOrder.SIZE; showSortMenu = false })
                             }
                         }
+                        IconButton(onClick = onNavigateToPlaylists) {
+                            Icon(Icons.Filled.PlaylistPlay, contentDescription = "Playlists")
+                        }
                         IconButton(onClick = onNavigateToSettings) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings")
                         }
@@ -144,20 +170,18 @@ fun MainScreen(
             if (isMultiSelectMode) {
                 BottomAppBar {
                     Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = { Toast.makeText(context, "Rename selected", Toast.LENGTH_SHORT).show() }) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Rename")
+                    IconButton(onClick = {
+                        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
+                            type = "*/*"
+                            putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(selectedMediaItems.map { it.uri }))
+                        }
+                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Share Media"))
+                    }) {
+                        Icon(Icons.Filled.Share, contentDescription = "Share")
                     }
                     Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = { Toast.makeText(context, "Mark as...", Toast.LENGTH_SHORT).show() }) {
-                        Icon(Icons.Filled.Label, contentDescription = "Mark as...")
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = { Toast.makeText(context, "Properties", Toast.LENGTH_SHORT).show() }) {
-                        Icon(Icons.Filled.Info, contentDescription = "Properties")
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = { Toast.makeText(context, "Delete selected", Toast.LENGTH_SHORT).show() }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                    IconButton(onClick = { showInfoDialog = true }) {
+                        Icon(Icons.Filled.Info, contentDescription = "Info")
                     }
                     Spacer(modifier = Modifier.weight(1f))
                 }
@@ -372,6 +396,121 @@ fun MainScreen(
                 }
             }
         }
+    }
+
+    if (showAddToPlaylistDialog) {
+        var createNew = playlists.isEmpty()
+        var newPlaylistName by rememberSaveable { mutableStateOf("") }
+        var selectedPlaylistId by rememberSaveable { mutableStateOf<Int?>(playlists.firstOrNull()?.id) }
+
+        var isCreating by remember { mutableStateOf(createNew) }
+
+        AlertDialog(
+            onDismissRequest = { showAddToPlaylistDialog = false },
+            title = { Text("Add to Playlist") },
+            text = {
+                Column {
+                    if (playlists.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = !isCreating, onClick = { isCreating = false })
+                            Text("Existing Playlist", modifier = Modifier.clickable { isCreating = false })
+                        }
+                        if (!isCreating) {
+                            Box(modifier = Modifier.padding(start = 32.dp, top = 8.dp, bottom = 8.dp)) {
+                                var expanded by remember { mutableStateOf(false) }
+                                val selectedPlaylist = playlists.find { it.id == selectedPlaylistId }
+                                OutlinedButton(onClick = { expanded = true }) {
+                                    Text(selectedPlaylist?.name ?: "Select Playlist")
+                                }
+                                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                    playlists.forEach { pl ->
+                                        DropdownMenuItem(
+                                            text = { Text(pl.name) },
+                                            onClick = {
+                                                selectedPlaylistId = pl.id
+                                                expanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = isCreating, onClick = { isCreating = true })
+                        Text("New Playlist", modifier = Modifier.clickable { isCreating = true })
+                    }
+                    if (isCreating) {
+                        OutlinedTextField(
+                            value = newPlaylistName,
+                            onValueChange = { newPlaylistName = it },
+                            label = { Text("Playlist Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(start = 32.dp, top = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            val playlistId = if (isCreating) {
+                                if (newPlaylistName.isNotBlank()) {
+                                    repository.insertPlaylist(Playlist(name = newPlaylistName.trim())).toInt()
+                                } else {
+                                    return@launch
+                                }
+                            } else {
+                                selectedPlaylistId ?: return@launch
+                            }
+
+                            selectedMediaItems.forEach { item ->
+                                val playlistItem = PlaylistItem(
+                                    playlistId = playlistId,
+                                    mediaUri = item.uri.toString()
+                                )
+                                repository.insertPlaylistItem(playlistItem)
+                            }
+                            
+                            launch {
+                                Toast.makeText(context, "Added to playlist", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        showAddToPlaylistDialog = false
+                    }
+                ) {
+                    Text("Add")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddToPlaylistDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showInfoDialog && selectedMediaItems.isNotEmpty()) {
+        val totalSize = selectedMediaItems.sumOf { it.size }
+        val sizeInMB = totalSize / (1024 * 1024)
+        
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text("Selection Properties", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Items selected: ${selectedMediaItems.size}", style = MaterialTheme.typography.bodyLarge)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Total size: $sizeInMB MB", style = MaterialTheme.typography.bodyLarge)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }
 
