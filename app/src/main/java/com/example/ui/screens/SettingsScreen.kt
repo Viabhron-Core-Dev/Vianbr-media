@@ -19,14 +19,23 @@ import androidx.compose.ui.unit.dp
 import com.example.LogKeeper
 import com.example.data.SettingsManager
 
+import com.example.ui.screens.MediaViewModel
+import com.example.data.MediaFolder
+import androidx.lifecycle.viewmodel.compose.viewModel
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
     
+    val viewModel: MediaViewModel = viewModel()
+    val mediaFolders by viewModel.mediaFolders.collectAsState()
+    
     val excludedFolders by settingsManager.excludedFolders.collectAsState()
     val extensions by settingsManager.extensions.collectAsState()
+
+    var showExcludeDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -75,11 +84,43 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 }
             }
             
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(onClick = { showExcludeDialog = true }) {
+                Text("Add Excluded Folder")
+            }
+            
             Spacer(modifier = Modifier.height(24.dp))
             
             Text("Media Configuration", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
             Text("Inclusion Extensions: ${extensions.joinToString(", ")}", style = MaterialTheme.typography.bodyMedium)
+        }
+        
+        if (showExcludeDialog) {
+            AlertDialog(
+                onDismissRequest = { showExcludeDialog = false },
+                title = { Text("Select Folder to Exclude") },
+                text = {
+                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                        items(mediaFolders) { folder ->
+                            TextButton(
+                                onClick = { 
+                                    settingsManager.addExcludedFolder(folder.id)
+                                    showExcludeDialog = false 
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(folder.name, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showExcludeDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

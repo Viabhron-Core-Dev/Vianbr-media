@@ -52,6 +52,14 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import kotlin.math.roundToInt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -101,6 +109,100 @@ fun formatTime(ms: Long): String {
 
 enum class GestureType { NONE, SEEK, BRIGHTNESS, VOLUME, ZOOM_PAN }
 
+fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
+    if (uri.scheme == "content") {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (index != -1) {
+                    val name = cursor.getString(index)
+                    if (name != null) return name.substringBeforeLast('.')
+                }
+            }
+        }
+    }
+    return uri.lastPathSegment?.substringBeforeLast('.') ?: "Unknown"
+}
+
+@Composable
+fun VerticalCompactSlider(
+    value: Float,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .padding(vertical = 12.dp, horizontal = 12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .height(140.dp)
+                .width(4.dp)
+                .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight(value.coerceIn(0f, 1f))
+                    .width(4.dp)
+                    .background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+    }
+}
+
+@Composable
+fun InteractiveVerticalCompactSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier
+) {
+    var dragRatio by remember(value) { mutableFloatStateOf(value) }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.7f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .padding(vertical = 12.dp, horizontal = 24.dp)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { change, dragAmount ->
+                    change.consume()
+                    val changeRatio = -dragAmount / 140.dp.toPx()
+                    dragRatio = (dragRatio + changeRatio).coerceIn(0f, 1f)
+                    onValueChange(dragRatio)
+                }
+            }
+    ) {
+        Box(
+            modifier = Modifier
+                .height(140.dp)
+                .width(6.dp)
+                .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(3.dp)),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight(dragRatio.coerceIn(0f, 1f))
+                    .width(6.dp)
+                    .background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
+            )
+            // Add a thumb
+            Box(
+                modifier = Modifier
+                    .offset(y = (140.dp - (140.dp * dragRatio.coerceIn(0f, 1f))) - 70.dp)
+                    .size(12.dp)
+                    .background(Color.White, androidx.compose.foundation.shape.CircleShape)
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+    }
+}
+
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
@@ -119,6 +221,7 @@ fun PlayerScreen(
 
     var activeGesture by remember { mutableStateOf(GestureType.NONE) }
     var gestureText by remember { mutableStateOf("") }
+    var gestureVolumeRatio by remember { mutableFloatStateOf(0f) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -328,7 +431,8 @@ fun PlayerScreen(
                                     val volumeChange = -(dragDistanceY / size.height) * maxVolume
                                     val newVolume = (startVolume + volumeChange).toInt().coerceIn(0, maxVolume)
                                     audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, newVolume, 0)
-                                    gestureText = "Volume: $newVolume / $maxVolume"
+                                    gestureVolumeRatio = newVolume.toFloat() / maxVolume.toFloat()
+                                    gestureText = "Volume: ${(gestureVolumeRatio * 100).roundToInt()}%"
                                     change.consume()
                                 }
                                 else -> {}
@@ -366,15 +470,25 @@ fun PlayerScreen(
             }
         )
 
-        if (activeGesture != GestureType.NONE && gestureText.isNotEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = gestureText,
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)
-                )
+        if (activeGesture != GestureType.NONE) {
+            if (activeGesture == GestureType.VOLUME) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+                    VerticalCompactSlider(
+                        value = gestureVolumeRatio,
+                        icon = Icons.Filled.VolumeUp,
+                        modifier = Modifier.padding(start = 32.dp)
+                    )
+                }
+            } else if (gestureText.isNotEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = gestureText,
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)
+                    )
+                }
             }
         }
 
@@ -387,7 +501,7 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier
                     .windowInsetsPadding(WindowInsets.systemBars)
-                    .padding(16.dp)
+                    .padding(top = 4.dp, end = 8.dp)
             ) {
                 var timeInfo by remember { mutableStateOf("") }
                 LaunchedEffect(Unit) {
@@ -405,10 +519,9 @@ fun PlayerScreen(
                 }
                 Text(
                     text = timeInfo,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 10.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                 )
             }
         }
@@ -435,9 +548,9 @@ fun PlayerScreen(
                     // Top controls background
                     Box(modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp)
+                        .height(80.dp)
                         .align(Alignment.TopCenter)
-                        .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.8f), Color.Transparent)))
+                        .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)))
                     )
                     
                     // Top controls overlay
@@ -447,24 +560,23 @@ fun PlayerScreen(
                             .align(Alignment.TopCenter)
                             .windowInsetsPadding(WindowInsets.systemBars)
                     ) {
+                        val displayName = remember(decodedUriString) { getDisplayNameFromUri(context, Uri.parse(decodedUriString)) }
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             IconButton(onClick = onNavigateBack) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                             }
                             Text(
-                                text = java.io.File(decodedUriString).nameWithoutExtension,
+                                text = displayName,
                                 color = Color.White,
                                 fontSize = 16.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
                             )
-                            IconButton(onClick = { /* Speed */ }) {
-                                Icon(Icons.Filled.Speed, contentDescription = "Speed", tint = Color.White)
-                            }
                             IconButton(onClick = { /* Audio */ }) {
                                 Icon(Icons.Filled.Headphones, contentDescription = "Audio track", tint = Color.White)
                             }
@@ -478,20 +590,18 @@ fun PlayerScreen(
                         
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                         ) {
                             IconButton(onClick = { /* Repeat */ }) {
                                 Icon(Icons.Filled.Repeat, contentDescription = "Repeat", tint = Color.White)
                             }
-                            Spacer(Modifier.weight(1f))
+                            IconButton(onClick = { /* Speed */ }) {
+                                Icon(Icons.Filled.Speed, contentDescription = "Speed", tint = Color.White)
+                            }
                             IconButton(onClick = { showBrightnessSlider = !showBrightnessSlider }) {
                                 Icon(Icons.Filled.LightMode, contentDescription = "Brightness", tint = Color.White)
                             }
-                            Spacer(Modifier.weight(1f))
-                            IconButton(onClick = { /* Screenshot */ }) {
-                                Icon(Icons.Filled.Screenshot, contentDescription = "Screenshot", tint = Color.White)
-                            }
-                            Spacer(Modifier.weight(1f))
                             IconButton(onClick = {
                                 val currentOrientation = context.findActivity()?.requestedOrientation
                                 if (currentOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
@@ -502,38 +612,38 @@ fun PlayerScreen(
                             }) {
                                 Icon(Icons.Filled.ScreenRotation, contentDescription = "Rotation", tint = Color.White)
                             }
-                            Spacer(Modifier.weight(1f))
                             IconButton(onClick = { /* Background play */ }) {
                                 Icon(Icons.Filled.Headphones, contentDescription = "Background play", tint = Color.White)
                             }
                         }
-                        
-                        androidx.compose.animation.AnimatedVisibility(visible = showBrightnessSlider) {
-                            var brightness by remember { mutableFloatStateOf(context.findActivity()?.window?.attributes?.screenBrightness.takeIf { it != -1f } ?: 0.5f) }
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                Icon(Icons.Filled.LightMode, contentDescription = null, tint = Color.White)
-                                Slider(
-                                    value = brightness,
-                                    onValueChange = { newVal ->
-                                        brightness = newVal
-                                        val window = context.findActivity()?.window
-                                        window?.let {
-                                            val lp = it.attributes
-                                            lp.screenBrightness = newVal
-                                            it.attributes = lp
-                                        }
-                                    },
-                                    valueRange = 0f..1f,
-                                    modifier = Modifier.weight(1f).padding(horizontal = 16.dp)
-                                )
-                            }
-                        }
+                    }
+
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showBrightnessSlider,
+                        enter = androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.fadeOut(),
+                        modifier = Modifier.align(Alignment.Center)
+                    ) {
+                        var brightness by remember { mutableFloatStateOf(context.findActivity()?.window?.attributes?.screenBrightness.takeIf { it != -1f } ?: 0.5f) }
+                        InteractiveVerticalCompactSlider(
+                            value = brightness,
+                            onValueChange = { newVal ->
+                                brightness = newVal
+                                val window = context.findActivity()?.window
+                                window?.let {
+                                    val lp = it.attributes
+                                    lp.screenBrightness = newVal
+                                    it.attributes = lp
+                                }
+                            },
+                            icon = Icons.Filled.LightMode
+                        )
                     }
 
                     // Bottom controls background
                     Box(modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
+                        .height(120.dp)
                         .align(Alignment.BottomCenter)
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))))
                     )
@@ -544,7 +654,7 @@ fun PlayerScreen(
                             .fillMaxWidth()
                             .align(Alignment.BottomCenter)
                             .windowInsetsPadding(WindowInsets.systemBars)
-                            .padding(bottom = 16.dp)
+                            .padding(bottom = 8.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -553,7 +663,7 @@ fun PlayerScreen(
                             Text(
                                 text = formatTime(currentPosition),
                                 color = Color.White,
-                                fontSize = 14.sp
+                                fontSize = 12.sp
                             )
                             Slider(
                                 value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
@@ -568,11 +678,12 @@ fun PlayerScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(horizontal = 12.dp)
+                                    .height(24.dp)
                             )
                             Text(
                                 text = if (showRemainingTime && duration > 0) "-" + formatTime(duration - currentPosition) else formatTime(duration),
                                 color = Color.White,
-                                fontSize = 14.sp,
+                                fontSize = 12.sp,
                                 modifier = Modifier.clickable { showRemainingTime = !showRemainingTime }
                             )
                         }

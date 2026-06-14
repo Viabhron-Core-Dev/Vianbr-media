@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Label
@@ -51,6 +52,8 @@ import com.example.data.MediaItem
 import com.example.data.PlaybackTag
 import com.example.data.SettingsManager
 
+enum class SortOrder { NAME, DATE, SIZE }
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(
@@ -67,6 +70,9 @@ fun MainScreen(
     val isMultiSelectMode = selectedMediaItems.isNotEmpty()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    var sortOrder by rememberSaveable { mutableStateOf(SortOrder.DATE) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -117,6 +123,16 @@ fun MainScreen(
                             Icon(Icons.Filled.PlaylistAdd, contentDescription = "Add to Playlist")
                         }
                     } else {
+                        Box {
+                            IconButton(onClick = { showSortMenu = true }) {
+                                Icon(Icons.Filled.Sort, contentDescription = "Sort")
+                            }
+                            DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                                DropdownMenuItem(text = { Text("Sort by Name") }, onClick = { sortOrder = SortOrder.NAME; showSortMenu = false })
+                                DropdownMenuItem(text = { Text("Sort by Date") }, onClick = { sortOrder = SortOrder.DATE; showSortMenu = false })
+                                DropdownMenuItem(text = { Text("Sort by Size") }, onClick = { sortOrder = SortOrder.SIZE; showSortMenu = false })
+                            }
+                        }
                         IconButton(onClick = onNavigateToSettings) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings")
                         }
@@ -158,8 +174,7 @@ fun MainScreen(
                         val sorted = itemsToConsider.sortedByDescending { settings.getLastPlayedTime(it.uri.toString()) }
                         val toPlay = sorted.firstOrNull()
                         if (toPlay != null) {
-                            val uriString = android.util.Base64.encodeToString(toPlay.uri.toString().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-                            onNavigateToPlayer(uriString)
+                            onNavigateToPlayer(toPlay.uri.toString())
                         } else {
                             Toast.makeText(context, "No videos to play", Toast.LENGTH_SHORT).show()
                         }
@@ -206,8 +221,13 @@ fun MainScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
+                            val sortedFolders = when (sortOrder) {
+                                SortOrder.NAME -> mediaFolders.sortedBy { it.name.lowercase() }
+                                SortOrder.DATE -> mediaFolders.sortedByDescending { it.dateModified }
+                                SortOrder.SIZE -> mediaFolders.sortedByDescending { folder -> folder.mediaItems.sumOf { it.size } }
+                            }
                             val settingsManager = SettingsManager.getInstance(context)
-                            items(mediaFolders) { folder ->
+                            items(sortedFolders) { folder ->
                                 FolderCard(
                                     folder = folder,
                                     onClick = { selectedFolderId = folder.id },
@@ -232,7 +252,12 @@ fun MainScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            items(folder.mediaItems) { media ->
+                            val sortedMediaItems = when (sortOrder) {
+                                SortOrder.NAME -> folder.mediaItems.sortedBy { it.name.lowercase() }
+                                SortOrder.DATE -> folder.mediaItems.sortedByDescending { it.dateAdded }
+                                SortOrder.SIZE -> folder.mediaItems.sortedByDescending { it.size }
+                            }
+                            items(sortedMediaItems) { media ->
                                 val isSelected = selectedMediaItems.contains(media)
                                 Card(
                                     modifier = Modifier
