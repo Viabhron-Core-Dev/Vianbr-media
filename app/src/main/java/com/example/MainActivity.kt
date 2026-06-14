@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
           LoggerScreen(onClose = { isLoggerOpen = false })
         } else {
           Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            Box(modifier = Modifier.fillMaxSize()) {
               AppNavigation()
               
               // Global Diagnostic FAB
@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
                 onClick = { isLoggerOpen = true },
                 modifier = Modifier
                   .align(Alignment.BottomStart)
+                  .padding(innerPadding)
                   .padding(16.dp),
                 containerColor = if (logEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
               ) {

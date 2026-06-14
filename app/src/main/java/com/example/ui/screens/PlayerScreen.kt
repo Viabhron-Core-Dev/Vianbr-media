@@ -65,6 +65,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -124,85 +127,6 @@ fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
     return uri.lastPathSegment?.substringBeforeLast('.') ?: "Unknown"
 }
 
-@Composable
-fun VerticalCompactSlider(
-    value: Float,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-            .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            .padding(vertical = 12.dp, horizontal = 12.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .height(140.dp)
-                .width(4.dp)
-                .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight(value.coerceIn(0f, 1f))
-                    .width(4.dp)
-                    .background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
-            )
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-    }
-}
-
-@Composable
-fun InteractiveVerticalCompactSlider(
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier
-) {
-    var dragRatio by remember(value) { mutableFloatStateOf(value) }
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-            .background(Color.Black.copy(alpha = 0.7f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            .padding(vertical = 12.dp, horizontal = 24.dp)
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { change, dragAmount ->
-                    change.consume()
-                    val changeRatio = -dragAmount / 140.dp.toPx()
-                    dragRatio = (dragRatio + changeRatio).coerceIn(0f, 1f)
-                    onValueChange(dragRatio)
-                }
-            }
-    ) {
-        Box(
-            modifier = Modifier
-                .height(140.dp)
-                .width(6.dp)
-                .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(3.dp)),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight(dragRatio.coerceIn(0f, 1f))
-                    .width(6.dp)
-                    .background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
-            )
-            // Add a thumb
-            Box(
-                modifier = Modifier
-                    .offset(y = (140.dp - (140.dp * dragRatio.coerceIn(0f, 1f))) - 70.dp)
-                    .size(12.dp)
-                    .background(Color.White, androidx.compose.foundation.shape.CircleShape)
-            )
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-    }
-}
-
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
@@ -218,6 +142,15 @@ fun PlayerScreen(
     var showRemainingTime by remember { mutableStateOf(false) }
     var resizeMode by remember { androidx.compose.runtime.mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
     var showBrightnessSlider by remember { mutableStateOf(false) }
+    var brightnessInteractionTime by remember { mutableLongStateOf(0L) }
+
+    // Auto-hide brightness slider after inactivity
+    LaunchedEffect(showBrightnessSlider, brightnessInteractionTime) {
+        if (showBrightnessSlider) {
+            kotlinx.coroutines.delay(3000)
+            showBrightnessSlider = false
+        }
+    }
 
     var activeGesture by remember { mutableStateOf(GestureType.NONE) }
     var gestureText by remember { mutableStateOf("") }
@@ -456,6 +389,9 @@ fun PlayerScreen(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     useController = false
+                    // Prevent layout shifting when system bars show/hide
+                    fitsSystemWindows = false
+                    setOnApplyWindowInsetsListener { _, insets -> insets } 
                 }
             },
             update = { view ->
@@ -473,11 +409,30 @@ fun PlayerScreen(
         if (activeGesture != GestureType.NONE) {
             if (activeGesture == GestureType.VOLUME) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
-                    VerticalCompactSlider(
-                        value = gestureVolumeRatio,
-                        icon = Icons.Filled.VolumeUp,
-                        modifier = Modifier.padding(start = 32.dp)
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .padding(start = 32.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                            .padding(vertical = 12.dp, horizontal = 12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .height(140.dp)
+                                .width(4.dp)
+                                .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight(gestureVolumeRatio.coerceIn(0f, 1f))
+                                    .width(4.dp)
+                                    .background(Color(0xFF2196F3), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Icon(androidx.compose.material.icons.Icons.Filled.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                    }
                 }
             } else if (gestureText.isNotEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -577,6 +532,9 @@ fun PlayerScreen(
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
                             )
+                            IconButton(onClick = { /* Speed */ }) {
+                                Icon(Icons.Filled.Speed, contentDescription = "Speed", tint = Color.White)
+                            }
                             IconButton(onClick = { /* Audio */ }) {
                                 Icon(Icons.Filled.Headphones, contentDescription = "Audio track", tint = Color.White)
                             }
@@ -596,10 +554,12 @@ fun PlayerScreen(
                             IconButton(onClick = { /* Repeat */ }) {
                                 Icon(Icons.Filled.Repeat, contentDescription = "Repeat", tint = Color.White)
                             }
-                            IconButton(onClick = { /* Speed */ }) {
-                                Icon(Icons.Filled.Speed, contentDescription = "Speed", tint = Color.White)
-                            }
-                            IconButton(onClick = { showBrightnessSlider = !showBrightnessSlider }) {
+                            IconButton(onClick = { 
+                                showBrightnessSlider = !showBrightnessSlider 
+                                if (showBrightnessSlider) {
+                                    brightnessInteractionTime = System.currentTimeMillis()
+                                }
+                            }) {
                                 Icon(Icons.Filled.LightMode, contentDescription = "Brightness", tint = Color.White)
                             }
                             IconButton(onClick = {
@@ -625,19 +585,30 @@ fun PlayerScreen(
                         modifier = Modifier.align(Alignment.Center)
                     ) {
                         var brightness by remember { mutableFloatStateOf(context.findActivity()?.window?.attributes?.screenBrightness.takeIf { it != -1f } ?: 0.5f) }
-                        InteractiveVerticalCompactSlider(
-                            value = brightness,
-                            onValueChange = { newVal ->
-                                brightness = newVal
-                                val window = context.findActivity()?.window
-                                window?.let {
-                                    val lp = it.attributes
-                                    lp.screenBrightness = newVal
-                                    it.attributes = lp
-                                }
-                            },
-                            icon = Icons.Filled.LightMode
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically, 
+                            modifier = Modifier
+                                .fillMaxWidth(0.6f)
+                                .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Filled.LightMode, contentDescription = null, tint = Color.White)
+                            Slider(
+                                value = brightness,
+                                onValueChange = { newVal ->
+                                    brightnessInteractionTime = System.currentTimeMillis()
+                                    brightness = newVal
+                                    val window = context.findActivity()?.window
+                                    window?.let {
+                                        val lp = it.attributes
+                                        lp.screenBrightness = newVal
+                                        it.attributes = lp
+                                    }
+                                },
+                                valueRange = 0f..1f,
+                                modifier = Modifier.weight(1f).padding(horizontal = 16.dp)
+                            )
+                        }
                     }
 
                     // Bottom controls background
@@ -671,9 +642,9 @@ fun PlayerScreen(
                                     mediaController?.seekTo((scale * duration).toLong())
                                 },
                                 colors = SliderDefaults.colors(
-                                    thumbColor = Color.White,
-                                    activeTrackColor = Color.White,
-                                    inactiveTrackColor = Color.Gray.copy(alpha = 0.5f)
+                                    thumbColor = Color(0xFF2196F3),
+                                    activeTrackColor = Color(0xFF2196F3),
+                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
@@ -722,7 +693,12 @@ fun PlayerScreen(
                                     else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
                                 }
                             }) {
-                                Icon(Icons.Filled.AspectRatio, contentDescription = "Aspect Ratio", tint = Color.White)
+                                val resizeIcon = when (resizeMode) {
+                                    AspectRatioFrameLayout.RESIZE_MODE_FIT -> Icons.Filled.FullscreenExit
+                                    AspectRatioFrameLayout.RESIZE_MODE_FILL -> Icons.Filled.Fullscreen
+                                    else -> Icons.Filled.Crop
+                                }
+                                Icon(resizeIcon, contentDescription = "Aspect Ratio", tint = Color.White)
                             }
                             IconButton(onClick = {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
