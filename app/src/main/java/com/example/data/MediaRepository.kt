@@ -42,50 +42,106 @@ enum class MediaType {
 class MediaRepository(private val context: Context) {
     
     fun getMediaFolders(): List<MediaFolder> {
-        val folders = mutableListOf<MediaFolder>()
+        val foldersMap = mutableMapOf<String, MutableList<MediaItem>>()
+        val folderNames = mutableMapOf<String, String>()
+        val folderPaths = mutableMapOf<String, String>()
+        val folderDates = mutableMapOf<String, Long>()
+
         val settings = SettingsManager.getInstance(context)
-        val folderUris = settings.folderUris.value
+        val excludedFolders = settings.excludedFolders.value
         val exts = settings.extensions.value
 
-        val scannedDocIds = mutableSetOf<String>()
-
-        val durationMap = mutableMapOf<String, Long>()
         try {
+            val projection = arrayOf(
+                android.provider.MediaStore.Video.Media._ID,
+                android.provider.MediaStore.Video.Media.DATA,
+                android.provider.MediaStore.Video.Media.DISPLAY_NAME,
+                android.provider.MediaStore.Video.Media.SIZE,
+                android.provider.MediaStore.Video.Media.DURATION,
+                android.provider.MediaStore.Video.Media.DATE_MODIFIED,
+                android.provider.MediaStore.Video.Media.BUCKET_ID,
+                android.provider.MediaStore.Video.Media.BUCKET_DISPLAY_NAME
+            )
+
             context.contentResolver.query(
                 android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                arrayOf(
-                    android.provider.MediaStore.Video.Media.DISPLAY_NAME,
-                    android.provider.MediaStore.Video.Media.SIZE,
-                    android.provider.MediaStore.Video.Media.DURATION
-                ),
-                null, null, null
+                projection, null, null, null
             )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media._ID)
+                val dataCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DATA)
                 val nameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DISPLAY_NAME)
                 val sizeCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.SIZE)
                 val durCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DURATION)
+                val dateCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DATE_MODIFIED)
+                val bucketIdCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.BUCKET_ID)
+                val bucketNameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
                 
+                val currentTime = System.currentTimeMillis()
+                val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
+
                 while (cursor.moveToNext()) {
-                    val n = cursor.getString(nameCol) ?: continue
-                    val s = cursor.getLong(sizeCol)
-                    val d = cursor.getLong(durCol)
-                    durationMap["${n}_${s}"] = d
+                    val bucketId = cursor.getString(bucketIdCol) ?: continue
+                    if (excludedFolders.contains(bucketId)) continue
+
+                    val name = cursor.getString(nameCol) ?: continue
+                    val ext = name.substringAfterLast('.', "").lowercase()
+                    if (!exts.contains(ext) && !ext.isEmpty()) continue
+
+                    val id = cursor.getLong(idCol)
+                    val data = cursor.getString(dataCol) ?: ""
+                    val size = cursor.getLong(sizeCol)
+                    val dur = cursor.getLong(durCol)
+                    val dateMs = cursor.getLong(dateCol) * 1000
+                    val bucketName = cursor.getString(bucketNameCol) ?: "Unknown Folder"
+
+                    val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                    val uriStr = uri.toString()
+                    
+                    val isFinished = settings.isFinished(uriStr)
+                    val playbackPos = settings.getPlaybackPosition(uriStr)
+                    
+                    val tag = if (isFinished) {
+                        PlaybackTag.SEEN
+                    } else if (playbackPos > 0L) {
+                        PlaybackTag.PLAYING
+                    } else {
+                        if (currentTime - dateMs < fifteenDaysMs) PlaybackTag.NEW else PlaybackTag.UNSEEN
+                    }
+
+                    val item = MediaItem(
+                        id = id,
+                        uri = uri,
+                        name = name,
+                        size = size,
+                        duration = dur,
+                        dateAdded = dateMs,
+                        mediaType = MediaType.VIDEO,
+                        hasSubtitle = false, // Subtitles not easily extracted this way without checking filesystem
+                        tag = tag
+                    )
+
+                    foldersMap.getOrPut(bucketId) { mutableListOf() }.add(item)
+                    folderNames[bucketId] = bucketName
+                    folderPaths[bucketId] = data.substringBeforeLast('/', "")
+                    val existingDate = folderDates[bucketId] ?: 0L
+                    if (dateMs > existingDate) {
+                        folderDates[bucketId] = dateMs
+                    }
                 }
             }
         } catch (e: Exception) {
-            LogKeeper.logError("MediaRepository", "Error fetching MediaStore durations: ${e.message}", e)
+            LogKeeper.logError("MediaRepository", "Error fetching from MediaStore: ${e.message}", e)
         }
 
-        for (treeUri in folderUris) {
-            try {
-                val rootDocId = DocumentsContract.getTreeDocumentId(treeUri)
-                val rootName = rootDocId.substringAfterLast('/', rootDocId.substringAfterLast(':'))
-                scanDirectoryForFolders(treeUri, rootDocId, rootName, rootDocId, exts, folders, scannedDocIds, durationMap)
-            } catch (e: Exception) {
-                LogKeeper.logError("MediaRepository", "Error accessing tree: ${treeUri}, ${e.message}", e)
-            }
-        }
-
-        return folders.distinctBy { it.id }.sortedBy { it.name.lowercase() }
+        return foldersMap.map { (bucketId, items) ->
+            MediaFolder(
+                id = bucketId,
+                name = folderNames[bucketId] ?: "Unknown",
+                path = folderPaths[bucketId] ?: "",
+                dateModified = folderDates[bucketId] ?: 0L,
+                mediaItems = items.sortedByDescending { it.dateAdded }
+            )
+        }.sortedBy { it.name.lowercase() }
     }
 
     private fun scanDirectoryForFolders(

@@ -49,6 +49,7 @@ import coil.decode.VideoFrameDecoder
 import com.example.data.MediaFolder
 import com.example.data.MediaItem
 import com.example.data.PlaybackTag
+import com.example.data.SettingsManager
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -145,6 +146,29 @@ fun MainScreen(
                     Spacer(modifier = Modifier.weight(1f))
                 }
             }
+        },
+        floatingActionButton = {
+            if (!isMultiSelectMode && mediaFolders.isNotEmpty()) {
+                FloatingActionButton(
+                    onClick = {
+                        val settings = com.example.data.SettingsManager.getInstance(context)
+                        val itemsToConsider = if (selectedFolder != null) selectedFolder.mediaItems else mediaFolders.flatMap { it.mediaItems }
+                        
+                        // Find the one with the most recent Play time, or just the first if none
+                        val sorted = itemsToConsider.sortedByDescending { settings.getLastPlayedTime(it.uri.toString()) }
+                        val toPlay = sorted.firstOrNull()
+                        if (toPlay != null) {
+                            val uriString = android.util.Base64.encodeToString(toPlay.uri.toString().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                            onNavigateToPlayer(uriString)
+                        } else {
+                            Toast.makeText(context, "No videos to play", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = "Play Last Played")
+                }
+            }
         }
     ) { paddingValues ->
         Box(
@@ -182,10 +206,16 @@ fun MainScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
+                            val settingsManager = SettingsManager.getInstance(context)
                             items(mediaFolders) { folder ->
-                                FolderCard(folder) {
-                                    selectedFolderId = folder.id
-                                }
+                                FolderCard(
+                                    folder = folder,
+                                    onClick = { selectedFolderId = folder.id },
+                                    onExclude = {
+                                        settingsManager.addExcludedFolder(folder.id)
+                                        viewModel.loadMedia()
+                                    }
+                                )
                             }
                         }
                     } else {
@@ -280,7 +310,7 @@ fun MainScreen(
                                                 text = media.name, 
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Normal,
-                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (media.tag == PlaybackTag.SEEN) Color.Gray else MaterialTheme.colorScheme.onSurface,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (media.tag == PlaybackTag.SEEN || media.tag == PlaybackTag.PLAYING) Color.LightGray else MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -321,7 +351,7 @@ fun MainScreen(
 }
 
 @Composable
-fun FolderCard(folder: MediaFolder, onClick: () -> Unit) {
+fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -390,6 +420,21 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+            }
+            var expanded by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { expanded = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
+                }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Exclude Folder") },
+                        onClick = {
+                            expanded = false
+                            onExclude()
+                        }
+                    )
                 }
             }
         }

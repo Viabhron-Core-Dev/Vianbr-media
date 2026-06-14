@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
               FloatingActionButton(
                 onClick = { isLoggerOpen = true },
                 modifier = Modifier
-                  .align(Alignment.BottomEnd)
+                  .align(Alignment.BottomStart)
                   .padding(16.dp),
                 containerColor = if (logEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
               ) {

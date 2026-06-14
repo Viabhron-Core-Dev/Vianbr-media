@@ -9,16 +9,16 @@ import kotlinx.coroutines.flow.asStateFlow
 class SettingsManager private constructor(context: Context) {
     private val prefs = context.getSharedPreferences("vianbr_settings", Context.MODE_PRIVATE)
 
-    private val _folderUris = MutableStateFlow<List<Uri>>(emptyList())
-    val folderUris: StateFlow<List<Uri>> = _folderUris.asStateFlow()
+    private val _excludedFolders = MutableStateFlow<Set<String>>(emptySet())
+    val excludedFolders: StateFlow<Set<String>> = _excludedFolders.asStateFlow()
 
     private val _extensions = MutableStateFlow<List<String>>(emptyList())
     val extensions: StateFlow<List<String>> = _extensions.asStateFlow()
 
     init {
-        val urisStrSet = prefs.getStringSet("folder_uris", emptySet())
-        if (!urisStrSet.isNullOrEmpty()) {
-            _folderUris.value = urisStrSet.map { Uri.parse(it) }
+        val excludedStrSet = prefs.getStringSet("excluded_folders", emptySet())
+        if (!excludedStrSet.isNullOrEmpty()) {
+            _excludedFolders.value = excludedStrSet
         }
         
         val defaultExts = setOf("mp4", "mkv", "mp3", "webm", "3gp", "avi", "mov", "flv", "wmv", "m4v", "aac", "wav", "flac")
@@ -33,20 +33,20 @@ class SettingsManager private constructor(context: Context) {
         _extensions.value = exts
     }
 
-    fun addFolderUri(uri: Uri) {
-        val currentList = _folderUris.value.toMutableList()
-        if (!currentList.contains(uri)) {
-            currentList.add(uri)
-            _folderUris.value = currentList
-            prefs.edit().putStringSet("folder_uris", currentList.map { it.toString() }.toSet()).apply()
+    fun addExcludedFolder(bucketId: String) {
+        val currentSet = _excludedFolders.value.toMutableSet()
+        if (currentSet.add(bucketId)) {
+            _excludedFolders.value = currentSet
+            prefs.edit().putStringSet("excluded_folders", currentSet).apply()
         }
     }
 
-    fun removeFolderUri(uri: Uri) {
-        val currentList = _folderUris.value.toMutableList()
-        currentList.remove(uri)
-        _folderUris.value = currentList
-        prefs.edit().putStringSet("folder_uris", currentList.map { it.toString() }.toSet()).apply()
+    fun removeExcludedFolder(bucketId: String) {
+        val currentSet = _excludedFolders.value.toMutableSet()
+        if (currentSet.remove(bucketId)) {
+            _excludedFolders.value = currentSet
+            prefs.edit().putStringSet("excluded_folders", currentSet).apply()
+        }
     }
 
     fun setExtensions(exts: List<String>) {
@@ -58,7 +58,12 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit()
             .putLong("pos_$uri", position)
             .putLong("dur_$uri", duration)
+            .putLong("time_$uri", System.currentTimeMillis())
             .apply()
+    }
+
+    fun getLastPlayedTime(uri: String): Long {
+        return prefs.getLong("time_$uri", 0L)
     }
 
     fun getPlaybackPosition(uri: String): Long {

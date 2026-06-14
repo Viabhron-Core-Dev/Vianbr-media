@@ -25,20 +25,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
     
-    val folderUris by settingsManager.folderUris.collectAsState()
+    val excludedFolders by settingsManager.excludedFolders.collectAsState()
     val extensions by settingsManager.extensions.collectAsState()
-
-    val dirPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            context.contentResolver.takePersistableUriPermission(uri, takeFlags)
-            settingsManager.addFolderUri(uri)
-            LogKeeper.log("Added media folder: ${uri}", "Settings")
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -60,36 +48,31 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         ) {
             Text("Storage Configuration", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Selected Folders", style = MaterialTheme.typography.labelLarge)
+            Text("Excluded Folders (Hidden)", style = MaterialTheme.typography.labelLarge)
             
-            if (folderUris.isEmpty()) {
-                Text("No folders selected", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (excludedFolders.isEmpty()) {
+                Text("No folders excluded", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
                 ) {
-                    items(folderUris) { uri ->
+                    items(excludedFolders.toList()) { bucketId ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
                             Text(
-                                uri.lastPathSegment ?: uri.toString(),
+                                "Folder ID: $bucketId",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f)
                             )
-                            IconButton(onClick = { settingsManager.removeFolderUri(uri) }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Remove Folder", tint = MaterialTheme.colorScheme.error)
+                            IconButton(onClick = { settingsManager.removeExcludedFolder(bucketId) }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Restore Folder", tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
                 }
-            }
-            
-            Spacer(modifier = Modifier.height(4.dp))
-            Button(onClick = { dirPickerLauncher.launch(null) }) {
-                Text("Add Folder")
             }
             
             Spacer(modifier = Modifier.height(24.dp))
