@@ -65,6 +65,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.Card
@@ -140,7 +141,7 @@ fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
     return uri.lastPathSegment?.substringBeforeLast('.') ?: "Unknown"
 }
 
-@OptIn(UnstableApi::class)
+@OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun PlayerScreen(
     uriString: String,
@@ -150,10 +151,7 @@ fun PlayerScreen(
     val context = LocalContext.current
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
     var showControls by remember { mutableStateOf(false) }
-    var currentPosition by remember { mutableLongStateOf(0L) }
-    var duration by remember { mutableLongStateOf(0L) }
     var isLocked by remember { mutableStateOf(false) }
-    var showRemainingTime by remember { mutableStateOf(false) }
     var resizeMode by remember { androidx.compose.runtime.mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
     var showBrightnessSlider by remember { mutableStateOf(false) }
     var brightnessInteractionTime by remember { mutableLongStateOf(0L) }
@@ -229,8 +227,6 @@ fun PlayerScreen(
     LaunchedEffect(mediaController) {
         while (true) {
             if (mediaController != null) {
-                currentPosition = mediaController!!.currentPosition.coerceAtLeast(0L)
-                duration = mediaController!!.duration.coerceAtLeast(1L)
                 repeatMode = mediaController!!.repeatMode
             }
             delay(500)
@@ -390,7 +386,7 @@ fun PlayerScreen(
                 var startBrightness = window?.attributes?.screenBrightness ?: -1f
                 if (startBrightness < 0) startBrightness = 0.5f
                 
-                val startPosition = currentPosition
+                val startPosition = mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L
 
                 do {
                     val event = awaitPointerEvent()
@@ -427,9 +423,10 @@ fun PlayerScreen(
                             
                             when (currentGesture) {
                                 GestureType.SEEK -> {
+                                    val currentDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
                                     val seekOffsetMs = (dragDistanceX / size.width) * 120_000
-                                    val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, duration)
-                                    gestureText = "Seek: ${formatTime(targetPos)} / ${formatTime(duration)}"
+                                    val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, currentDuration)
+                                    gestureText = "Seek: ${formatTime(targetPos)} / ${formatTime(currentDuration)}"
                                     change.consume()
                                 }
                                 GestureType.VOLUME -> {
@@ -447,8 +444,9 @@ fun PlayerScreen(
                 } while (event.changes.any { it.pressed })
                 
                 if (currentGesture == GestureType.SEEK) {
+                    val currentDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
                     val seekOffsetMs = (dragDistanceX / size.width) * 120_000
-                    val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, duration)
+                    val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, currentDuration)
                     mediaController?.seekTo(targetPos)
                 }
                 
@@ -758,36 +756,10 @@ fun PlayerScreen(
                             .windowInsetsPadding(WindowInsets.systemBars)
                             .padding(bottom = 8.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                        PlaybackProgressRow(
+                            mediaController = mediaController, 
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                        ) {
-                            Text(
-                                text = formatTime(currentPosition),
-                                color = Color.White,
-                                fontSize = 12.sp
-                            )
-                            Slider(
-                                value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
-                                onValueChange = { scale ->
-                                    mediaController?.seekTo((scale * duration).toLong())
-                                },
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFF2196F3),
-                                    activeTrackColor = Color(0xFF2196F3),
-                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(horizontal = 12.dp)
-                            )
-                            Text(
-                                text = if (showRemainingTime && duration > 0) "-" + formatTime(duration - currentPosition) else formatTime(duration),
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                modifier = Modifier.clickable { showRemainingTime = !showRemainingTime }
-                            )
-                        }
+                        )
                         
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -1084,13 +1056,12 @@ fun PlayerScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Slider(
-                            value = playbackSpeed,
-                            onValueChange = { 
-                                playbackSpeed = Math.round(it * 10.0f) / 10.0f
-                                mediaController?.setPlaybackSpeed(playbackSpeed)
+                        SpeedSliderRow(
+                            playbackSpeed = playbackSpeed,
+                            onSpeedChange = { newSpeed ->
+                                playbackSpeed = newSpeed
+                                mediaController?.setPlaybackSpeed(newSpeed)
                             },
-                            valueRange = 0.1f..3.0f,
                             modifier = Modifier.weight(1f)
                         )
                         IconButton(onClick = { 
@@ -1151,6 +1122,43 @@ fun PlayerScreen(
             }
         }
     }
+}
+
+@kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun SpeedSliderRow(
+    playbackSpeed: Float,
+    onSpeedChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Slider(
+        value = playbackSpeed,
+        onValueChange = { 
+            onSpeedChange(Math.round(it * 10.0f) / 10.0f)
+        },
+        valueRange = 0.1f..3.0f,
+        thumb = {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .background(Color(0xFF2196F3), CircleShape)
+            )
+        },
+        track = { sliderState ->
+            SliderDefaults.Track(
+                sliderState = sliderState,
+                colors = SliderDefaults.colors(
+                    activeTrackColor = Color(0xFF2196F3),
+                    inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
+                ),
+                drawStopIndicator = null,
+                thumbTrackGapSize = 0.dp,
+                trackInsideCornerSize = 0.dp,
+                modifier = Modifier.height(4.dp)
+            )
+        },
+        modifier = modifier
+    )
 }
 
 
