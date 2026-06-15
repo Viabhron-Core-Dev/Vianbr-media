@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -76,6 +77,41 @@ fun PlaylistDetailScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            if (!isMultiSelectMode && playlistItems.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .combinedClickable(
+                            onClick = {
+                                val first = playlistItems.first()
+                                onNavigateToPlayer(first.mediaUri)
+                            },
+                            onLongClick = {
+                                android.widget.Toast.makeText(context, "Playing all in background...", android.widget.Toast.LENGTH_SHORT).show()
+                                val sessionToken = androidx.media3.session.SessionToken(context, android.content.ComponentName(context, com.example.service.PlaybackService::class.java))
+                                val controllerFuture = androidx.media3.session.MediaController.Builder(context, sessionToken).buildAsync()
+                                controllerFuture.addListener({
+                                    val controller = controllerFuture.get()
+                                    val items = playlistItems.map { androidx.media3.common.MediaItem.Builder().setMediaId(it.mediaUri).build() }
+                                    controller.setMediaItems(items)
+                                    controller.prepare()
+                                    controller.play()
+                                }, androidx.core.content.ContextCompat.getMainExecutor(context))
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PlayArrow,
+                        contentDescription = "Play First / Long Press Play All",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
         },
         bottomBar = {
             if (isMultiSelectMode) {
@@ -163,8 +199,7 @@ fun PlaylistDetailScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            val decoded = Uri.decode(item.mediaUri)
-                            val name = decoded.substringAfterLast("/").substringAfterLast("%2F")
+                            val name = remember(item.mediaUri) { getDisplayNameFromUri(context, Uri.parse(item.mediaUri)) }
                             
                             Text(
                                 name, 
