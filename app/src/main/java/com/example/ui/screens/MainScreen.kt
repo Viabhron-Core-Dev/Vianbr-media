@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import android.widget.Toast
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.imageLoader
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.decode.VideoFrameDecoder
@@ -95,18 +96,6 @@ fun MainScreen(
     var showDeleteConfirmDialog by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var renameValue by rememberSaveable { mutableStateOf("") }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.loadMedia()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
 
     BackHandler(enabled = isMultiSelectMode) {
         selectedMediaItems.clear()
@@ -338,6 +327,9 @@ fun MainScreen(
                                                 model = ImageRequest.Builder(context)
                                                     .data(media.uri)
                                                     .decoderFactory(VideoFrameDecoder.Factory())
+                                                    .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                                                    .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                                                    .networkCachePolicy(coil.request.CachePolicy.DISABLED)
                                                     .crossfade(true)
                                                     .build(),
                                                 contentDescription = "Thumbnail",
@@ -521,9 +513,25 @@ fun MainScreen(
             title = { Text("Selection Properties", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text("Items selected: ${selectedMediaItems.size}", style = MaterialTheme.typography.bodyLarge)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Total size: $sizeInMB MB", style = MaterialTheme.typography.bodyLarge)
+                    if (selectedMediaItems.size == 1) {
+                        val item = selectedMediaItems.first()
+                        val sizeStr = if (item.size > 1024 * 1024) "${item.size / (1024 * 1024)} MB" else "${item.size / 1024} KB"
+                        val durationStr = if (item.duration > 0) String.format(java.util.Locale.US, "%02d:%02d", java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(item.duration), java.util.concurrent.TimeUnit.MILLISECONDS.toSeconds(item.duration) % 60) else "Unknown"
+                        val dateFormatted = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(item.dateAdded))
+                        Text("Name: ${item.name}", style = MaterialTheme.typography.bodyLarge)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Size: $sizeStr", style = MaterialTheme.typography.bodyLarge)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Duration: $durationStr", style = MaterialTheme.typography.bodyLarge)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Modified: $dateFormatted", style = MaterialTheme.typography.bodyLarge)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Path: ${item.uri.path}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Text("Items selected: ${selectedMediaItems.size}", style = MaterialTheme.typography.bodyLarge)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Total size: $sizeInMB MB", style = MaterialTheme.typography.bodyLarge)
+                    }
                 }
             },
             confirmButton = {
@@ -550,14 +558,17 @@ fun MainScreen(
                                         val file = java.io.File(uri.path!!)
                                         if (file.exists()) file.delete()
                                     } else {
-                                        android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri)
+                                        context.contentResolver.delete(uri, null, null)
                                     }
+                                    val imageLoader = context.imageLoader
+                                    imageLoader.diskCache?.remove(uri.toString())
+                                    imageLoader.memoryCache?.remove(coil.memory.MemoryCache.Key(uri.toString()))
                                 } catch (e: Exception) {
                                     com.example.LogKeeper.logError("MainScreen", "Error deleting file ${media.name}", e)
                                 }
                             }
                         }
-                        viewModel.loadMedia()
+                        selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
                         selectedMediaItems.clear()
                         showDeleteConfirmDialog = false
                     }
@@ -599,13 +610,24 @@ fun MainScreen(
                                     val file = java.io.File(uri.path!!)
                                     file.renameTo(java.io.File(file.parent, newNameWithExt))
                                 } else {
-                                    android.provider.DocumentsContract.renameDocument(context.contentResolver, uri, newNameWithExt)
+                                    val values = android.content.ContentValues().apply {
+                                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, newNameWithExt)
+                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                            put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
+                                        }
+                                    }
+                                    context.contentResolver.update(uri, values, null, null)
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                        values.clear()
+                                        values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
+                                        context.contentResolver.update(uri, values, null, null)
+                                    }
                                 }
                             } catch (e: Exception) {
                                 com.example.LogKeeper.logError("MainScreen", "Error renaming file ${selectedItem.name}", e)
                             }
                         }
-                        viewModel.loadMedia()
+                        selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
                         selectedMediaItems.clear()
                         showRenameDialog = false
                     }
@@ -648,6 +670,11 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                     modifier = Modifier.size(48.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
+                if (folder.mediaItems.any { it.tag == com.example.data.PlaybackTag.NEW }) {
+                    Box(modifier = Modifier.align(Alignment.TopStart).padding(4.dp).background(Color(0xFFE53935), RoundedCornerShape(4.dp))) {
+                        Text("NEW", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                    }
+                }
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {

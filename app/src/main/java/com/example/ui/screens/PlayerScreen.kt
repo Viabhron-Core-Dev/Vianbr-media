@@ -309,6 +309,18 @@ fun PlayerScreen(
                     val currentPos = controller.currentPosition
                     val dur = controller.duration
                     com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPos, dur)
+                    
+                    val activity = context.findActivity()
+                    val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) activity?.isInPictureInPictureMode == true else false
+                    if (!isPip && !controller.playWhenReady) {
+                        controller.stop()
+                    }
+                }
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                currentController?.let { controller ->
+                    if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                        controller.prepare()
+                    }
                 }
             }
         }
@@ -823,8 +835,10 @@ fun PlayerScreen(
                                                 }
                                                 Toast.makeText(context, "Screenshot saved to Photos", Toast.LENGTH_SHORT).show()
                                             }
+                                            bitmap.recycle()
                                         } else {
                                             Toast.makeText(context, "Screenshot failed (PixelCopy error)", Toast.LENGTH_SHORT).show()
+                                            bitmap.recycle()
                                         }
                                     }, android.os.Handler(android.os.Looper.getMainLooper()))
                                 } else {

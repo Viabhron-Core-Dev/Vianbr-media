@@ -32,4 +32,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             _isLoading.value = false
         }
     }
+
+    fun scanFolder(folderId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updatedFolder = repository.getMediaFolder(folderId)
+            val currentFolders = _mediaFolders.value.toMutableList()
+            val index = currentFolders.indexOfFirst { it.id == folderId }
+            if (index != -1) {
+                if (updatedFolder != null && updatedFolder.mediaItems.isNotEmpty()) {
+                    currentFolders[index] = updatedFolder
+                } else {
+                    currentFolders.removeAt(index)
+                }
+                _mediaFolders.value = currentFolders
+            }
+        }
+    }
 }

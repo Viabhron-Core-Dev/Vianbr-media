@@ -16,8 +16,21 @@ class PlaybackService : MediaSessionService() {
         val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this)
             .setDataSourceFactory(dataSourceFactory)
             
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setAllocator(androidx.media3.exoplayer.upstream.DefaultAllocator(true, androidx.media3.common.C.DEFAULT_BUFFER_SEGMENT_SIZE))
+            .setBufferDurationsMs(
+                androidx.media3.exoplayer.DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                androidx.media3.exoplayer.DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+                androidx.media3.exoplayer.DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
+                androidx.media3.exoplayer.DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+            )
+            .setTargetBufferBytes(androidx.media3.common.C.LENGTH_UNSET)
+            .setPrioritizeTimeOverSizeThresholds(false)
+            .build()
+
         val player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
             .build()
             
         player.addListener(object : androidx.media3.common.Player.Listener {

@@ -41,6 +41,11 @@ enum class MediaType {
 
 class MediaRepository(private val context: Context) {
     
+    fun getMediaFolder(bucketId: String): MediaFolder? {
+        val foldersMap = getMediaFolders()
+        return foldersMap.find { it.id == bucketId }
+    }
+
     fun getMediaFolders(): List<MediaFolder> {
         val foldersMap = mutableMapOf<String, MutableList<MediaItem>>()
         val folderNames = mutableMapOf<String, String>()
