@@ -693,6 +693,39 @@ fun PlayerScreen(
                             }) {
                                 Icon(Icons.Filled.Headphones, contentDescription = "Background play", tint = if (backgroundPlayEnabled) Color(0xFF2196F3) else Color.White)
                             }
+                            IconButton(onClick = {
+                                val surfaceView = playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView
+                                if (surfaceView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                    val bitmap = android.graphics.Bitmap.createBitmap(surfaceView.width, surfaceView.height, android.graphics.Bitmap.Config.ARGB_8888)
+                                    android.view.PixelCopy.request(surfaceView, bitmap, { result ->
+                                        if (result == android.view.PixelCopy.SUCCESS) {
+                                            val filename = "Screenshot_${System.currentTimeMillis()}.png"
+                                            val values = android.content.ContentValues().apply {
+                                                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                                                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
+                                                }
+                                            }
+                                            val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                                            uri?.let {
+                                                context.contentResolver.openOutputStream(it)?.use { out ->
+                                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                                                }
+                                                Toast.makeText(context, "Screenshot saved to Photos", Toast.LENGTH_SHORT).show()
+                                            }
+                                            bitmap.recycle()
+                                        } else {
+                                            Toast.makeText(context, "Screenshot failed (PixelCopy error)", Toast.LENGTH_SHORT).show()
+                                            bitmap.recycle()
+                                        }
+                                    }, android.os.Handler(android.os.Looper.getMainLooper()))
+                                } else {
+                                    Toast.makeText(context, "Screenshot failed: Surface not ready or unsupported OS", Toast.LENGTH_SHORT).show()
+                                }
+                            }) {
+                                Icon(Icons.Filled.Screenshot, contentDescription = "Screenshot", tint = Color.White)
+                            }
                         }
                     }
 
@@ -813,39 +846,6 @@ fun PlayerScreen(
                                     else -> Icons.Filled.Crop
                                 }
                                 Icon(resizeIcon, contentDescription = "Aspect Ratio", tint = Color.White)
-                            }
-                            IconButton(onClick = {
-                                val surfaceView = playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView
-                                if (surfaceView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                    val bitmap = android.graphics.Bitmap.createBitmap(surfaceView.width, surfaceView.height, android.graphics.Bitmap.Config.ARGB_8888)
-                                    android.view.PixelCopy.request(surfaceView, bitmap, { result ->
-                                        if (result == android.view.PixelCopy.SUCCESS) {
-                                            val filename = "Screenshot_${System.currentTimeMillis()}.png"
-                                            val values = android.content.ContentValues().apply {
-                                                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                                                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
-                                                }
-                                            }
-                                            val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                                            uri?.let {
-                                                context.contentResolver.openOutputStream(it)?.use { out ->
-                                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-                                                }
-                                                Toast.makeText(context, "Screenshot saved to Photos", Toast.LENGTH_SHORT).show()
-                                            }
-                                            bitmap.recycle()
-                                        } else {
-                                            Toast.makeText(context, "Screenshot failed (PixelCopy error)", Toast.LENGTH_SHORT).show()
-                                            bitmap.recycle()
-                                        }
-                                    }, android.os.Handler(android.os.Looper.getMainLooper()))
-                                } else {
-                                    Toast.makeText(context, "Screenshot failed: Surface not ready or unsupported OS", Toast.LENGTH_SHORT).show()
-                                }
-                            }) {
-                                Icon(Icons.Filled.Screenshot, contentDescription = "Screenshot", tint = Color.White)
                             }
                             IconButton(onClick = {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
