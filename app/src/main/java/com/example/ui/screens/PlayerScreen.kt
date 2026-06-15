@@ -144,7 +144,8 @@ fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
 @Composable
 fun PlayerScreen(
     uriString: String,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToPlayerSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
@@ -175,9 +176,29 @@ fun PlayerScreen(
     val backgroundPlayEnabledRef = androidx.compose.runtime.rememberUpdatedState(backgroundPlayEnabled)
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
     var skipSilence by remember { mutableStateOf(false) }
-    var showSpeedDialog by remember { mutableStateOf(false) }
-    var showAudioDialog by remember { mutableStateOf(false) }
-    var showSubtitleDialog by remember { mutableStateOf(false) }
+    var repeatMode by remember { androidx.compose.runtime.mutableIntStateOf(androidx.media3.common.Player.REPEAT_MODE_OFF) }
+        var showSpeedDialog by remember { mutableStateOf(false) }
+        var showAudioDialog by remember { mutableStateOf(false) }
+        var showSubtitleDialog by remember { mutableStateOf(false) }
+        var showTopMenu by remember { mutableStateOf(false) }
+
+        val audioPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                Toast.makeText(context, "Added audio: $uri", Toast.LENGTH_SHORT).show()
+                // In a full implementation, you'd send this URI to the PlaybackService to add to the MergingMediaSource
+            }
+        }
+
+        val subtitlePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                Toast.makeText(context, "Added subtitle: $uri", Toast.LENGTH_SHORT).show()
+                // In a full implementation, you'd send this URI to the PlaybackService to add to the MediaItem's SubtitleConfigurations
+            }
+        }
     val playerViewRef = remember { mutableStateOf<PlayerView?>(null) }
     val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
 
@@ -210,13 +231,16 @@ fun PlayerScreen(
             if (mediaController != null) {
                 currentPosition = mediaController!!.currentPosition.coerceAtLeast(0L)
                 duration = mediaController!!.duration.coerceAtLeast(1L)
+                repeatMode = mediaController!!.repeatMode
             }
             delay(500)
         }
     }
 
     LaunchedEffect(showControls) {
-        if (showControls) {
+        if (!showControls) {
+            showBrightnessSlider = false
+        } else {
             delay(5000)
             showControls = false
         }
@@ -234,6 +258,15 @@ fun PlayerScreen(
             val controller = controllerFuture.get()
             mediaController = controller
             controller.addListener(object : androidx.media3.common.Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                        val currentMode = controller.repeatMode
+                        val hasNext = controller.hasNextMediaItem()
+                        if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF && !hasNext) {
+                            onNavigateBack()
+                        }
+                    }
+                }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     com.example.LogKeeper.logError("PlayerScreen", "ExoPlayer Error: ${error.message}", error)
                 }
@@ -582,36 +615,26 @@ fun PlayerScreen(
                             IconButton(onClick = { showSubtitleDialog = true }) {
                                 Icon(Icons.Filled.Subtitles, contentDescription = "Subtitles", tint = Color.White)
                             }
-                            IconButton(onClick = { 
-                                val surfaceView = playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView
-                                if (surfaceView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                    val bitmap = android.graphics.Bitmap.createBitmap(surfaceView.width, surfaceView.height, android.graphics.Bitmap.Config.ARGB_8888)
-                                    android.view.PixelCopy.request(surfaceView, bitmap, { result ->
-                                        if (result == android.view.PixelCopy.SUCCESS) {
-                                            val filename = "Screenshot_${System.currentTimeMillis()}.png"
-                                            val values = android.content.ContentValues().apply {
-                                                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                                                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
-                                                }
-                                            }
-                                            val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                                            uri?.let {
-                                                context.contentResolver.openOutputStream(it)?.use { out ->
-                                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-                                                }
-                                                Toast.makeText(context, "Screenshot saved to Photos", Toast.LENGTH_SHORT).show()
-                                            }
-                                        } else {
-                                            Toast.makeText(context, "Screenshot failed (PixelCopy error)", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }, android.os.Handler(android.os.Looper.getMainLooper()))
-                                } else {
-                                    Toast.makeText(context, "Screenshot failed: Surface not ready or unsupported OS", Toast.LENGTH_SHORT).show()
+                            Box {
+                                IconButton(onClick = { showTopMenu = true }) {
+                                    Icon(Icons.Filled.MoreVert, contentDescription = "More options", tint = Color.White)
                                 }
-                            }) {
-                                Icon(Icons.Filled.Screenshot, contentDescription = "Screenshot", tint = Color.White)
+                                androidx.compose.material3.DropdownMenu(
+                                    expanded = showTopMenu,
+                                    onDismissRequest = { showTopMenu = false }
+                                ) {
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = { Text("Details") },
+                                        onClick = { showTopMenu = false }
+                                    )
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = { Text("Player settings") },
+                                        onClick = {
+                                            showTopMenu = false
+                                            onNavigateToPlayerSettings()
+                                        }
+                                    )
+                                }
                             }
                         }
                         
@@ -620,8 +643,21 @@ fun PlayerScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                         ) {
-                            IconButton(onClick = { /* Repeat */ }) {
-                                Icon(Icons.Filled.Repeat, contentDescription = "Repeat", tint = Color.White)
+                            IconButton(onClick = {
+                                val nextMode = when (repeatMode) {
+                                    androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
+                                    androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+                                    else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                                }
+                                repeatMode = nextMode
+                                mediaController?.repeatMode = nextMode
+                            }) {
+                                val repeatIcon = when (repeatMode) {
+                                    androidx.media3.common.Player.REPEAT_MODE_ONE -> Icons.Filled.RepeatOne
+                                    else -> Icons.Filled.Repeat
+                                }
+                                val repeatTint = if (repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White else Color(0xFF2196F3)
+                                Icon(repeatIcon, contentDescription = "Repeat", tint = repeatTint)
                             }
                             IconButton(onClick = { 
                                 showBrightnessSlider = !showBrightnessSlider 
@@ -654,32 +690,55 @@ fun PlayerScreen(
                         visible = showBrightnessSlider,
                         enter = androidx.compose.animation.fadeIn(),
                         exit = androidx.compose.animation.fadeOut(),
-                        modifier = Modifier.align(Alignment.Center)
+                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 48.dp)
                     ) {
                         var brightness by remember { mutableFloatStateOf(context.findActivity()?.window?.attributes?.screenBrightness.takeIf { it != -1f } ?: 0.5f) }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically, 
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
-                                .fillMaxWidth(0.6f)
                                 .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(horizontal = 12.dp, vertical = 24.dp)
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .height(140.dp)
+                                    .width(32.dp)
+                                    .pointerInput(Unit) {
+                                        detectVerticalDragGestures(
+                                            onVerticalDrag = { change, dragAmount ->
+                                                change.consume()
+                                                val dragRatio = -dragAmount / 140.dp.toPx()
+                                                val newVal = (brightness + dragRatio).coerceIn(0f, 1f)
+                                                brightnessInteractionTime = System.currentTimeMillis()
+                                                brightness = newVal
+                                                val window = context.findActivity()?.window
+                                                window?.let {
+                                                    val lp = it.attributes
+                                                    lp.screenBrightness = newVal
+                                                    it.attributes = lp
+                                                }
+                                            }
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .height(140.dp)
+                                        .width(4.dp)
+                                        .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
+                                    contentAlignment = Alignment.BottomCenter
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight(brightness.coerceIn(0f, 1f))
+                                            .width(4.dp)
+                                            .background(Color(0xFF2196F3), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
                             Icon(Icons.Filled.LightMode, contentDescription = null, tint = Color.White)
-                            Slider(
-                                value = brightness,
-                                onValueChange = { newVal ->
-                                    brightnessInteractionTime = System.currentTimeMillis()
-                                    brightness = newVal
-                                    val window = context.findActivity()?.window
-                                    window?.let {
-                                        val lp = it.attributes
-                                        lp.screenBrightness = newVal
-                                        it.attributes = lp
-                                    }
-                                },
-                                valueRange = 0f..1f,
-                                modifier = Modifier.weight(1f).padding(horizontal = 16.dp)
-                            )
                         }
                     }
 
@@ -721,7 +780,6 @@ fun PlayerScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(horizontal = 12.dp)
-                                    .height(24.dp)
                             )
                             Text(
                                 text = if (showRemainingTime && duration > 0) "-" + formatTime(duration - currentPosition) else formatTime(duration),
@@ -773,8 +831,55 @@ fun PlayerScreen(
                                 Icon(resizeIcon, contentDescription = "Aspect Ratio", tint = Color.White)
                             }
                             IconButton(onClick = {
+                                val surfaceView = playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView
+                                if (surfaceView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                    val bitmap = android.graphics.Bitmap.createBitmap(surfaceView.width, surfaceView.height, android.graphics.Bitmap.Config.ARGB_8888)
+                                    android.view.PixelCopy.request(surfaceView, bitmap, { result ->
+                                        if (result == android.view.PixelCopy.SUCCESS) {
+                                            val filename = "Screenshot_${System.currentTimeMillis()}.png"
+                                            val values = android.content.ContentValues().apply {
+                                                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                                                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
+                                                }
+                                            }
+                                            val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                                            uri?.let {
+                                                context.contentResolver.openOutputStream(it)?.use { out ->
+                                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                                                }
+                                                Toast.makeText(context, "Screenshot saved to Photos", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Screenshot failed (PixelCopy error)", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }, android.os.Handler(android.os.Looper.getMainLooper()))
+                                } else {
+                                    Toast.makeText(context, "Screenshot failed: Surface not ready or unsupported OS", Toast.LENGTH_SHORT).show()
+                                }
+                            }) {
+                                Icon(Icons.Filled.Screenshot, contentDescription = "Screenshot", tint = Color.White)
+                            }
+                            IconButton(onClick = {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    context.findActivity()?.enterPictureInPictureMode(PictureInPictureParams.Builder().build())
+                                    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+                                    val isAllowed = appOps.checkOpNoThrow(
+                                        android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
+                                        android.os.Process.myUid(),
+                                        context.packageName
+                                    ) == android.app.AppOpsManager.MODE_ALLOWED
+
+                                    if (isAllowed) {
+                                        context.findActivity()?.enterPictureInPictureMode(PictureInPictureParams.Builder().build())
+                                    } else {
+                                        context.startActivity(
+                                            android.content.Intent(
+                                                "android.settings.PICTURE_IN_PICTURE_SETTINGS",
+                                                android.net.Uri.parse("package:${context.packageName}")
+                                            )
+                                        )
+                                    }
                                 }
                             }) {
                                 Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "PiP", tint = Color.White)
@@ -825,6 +930,18 @@ fun PlayerScreen(
                         }
                     }
                     
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            audioPickerLauncher.launch("audio/*")
+                            showAudioDialog = false
+                        }.padding(vertical = 12.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = "Add More", tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add More...", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         androidx.compose.material3.TextButton(onClick = { showAudioDialog = false }) {
@@ -892,6 +1009,18 @@ fun PlayerScreen(
                         }
                     }
                     
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            subtitlePickerLauncher.launch("application/octet-stream") // Subtitle mime type
+                            showSubtitleDialog = false
+                        }.padding(vertical = 12.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = "Add More", tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add More...", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         androidx.compose.material3.TextButton(onClick = { showSubtitleDialog = false }) {

@@ -18,12 +18,19 @@ import androidx.navigation.navArgument
 import android.net.Uri
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(initialIntentUri: String? = null) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val navController = rememberNavController()
     
-    NavHost(navController = navController, startDestination = if (settingsManager.hasSeenWelcome) "main" else "welcome") {
+    val startDest = remember(initialIntentUri) {
+        if (initialIntentUri != null) {
+            val encodedUri = android.util.Base64.encodeToString(initialIntentUri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+            "player/$encodedUri"
+        } else if (settingsManager.hasSeenWelcome) "main" else "welcome"
+    }
+    
+    NavHost(navController = navController, startDestination = startDest) {
         composable("welcome") {
             WelcomeScreen(
                 onNavigateToMain = {
@@ -82,6 +89,16 @@ fun AppNavigation() {
             val uriString = backStackEntry.arguments?.getString("uri") ?: ""
             PlayerScreen(
                 uriString = uriString,
+                onNavigateBack = { 
+                    if (!navController.popBackStack()) {
+                        (context as? android.app.Activity)?.finish()
+                    }
+                },
+                onNavigateToPlayerSettings = { navController.navigate("player_settings") }
+            )
+        }
+        composable("player_settings") {
+            com.example.ui.screens.PlayerSettingsScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

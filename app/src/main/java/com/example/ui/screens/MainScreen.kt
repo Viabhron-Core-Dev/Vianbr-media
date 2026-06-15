@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -91,6 +92,9 @@ fun MainScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
     var showInfoDialog by rememberSaveable { mutableStateOf(false) }
+    var showDeleteConfirmDialog by rememberSaveable { mutableStateOf(false) }
+    var showRenameDialog by rememberSaveable { mutableStateOf(false) }
+    var renameValue by rememberSaveable { mutableStateOf("") }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -170,6 +174,19 @@ fun MainScreen(
             if (isMultiSelectMode) {
                 BottomAppBar {
                     Spacer(modifier = Modifier.weight(1f))
+                    if (selectedMediaItems.size == 1) {
+                        IconButton(onClick = { 
+                            renameValue = selectedMediaItems.first().name.substringBeforeLast(".")
+                            showRenameDialog = true 
+                        }) {
+                            Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = "Rename")
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(onClick = { /* Placeholder for Edit */ }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                     IconButton(onClick = {
                         val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
                             type = "*/*"
@@ -178,6 +195,10 @@ fun MainScreen(
                         context.startActivity(android.content.Intent.createChooser(shareIntent, "Share Media"))
                     }) {
                         Icon(Icons.Filled.Share, contentDescription = "Share")
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = { showDeleteConfirmDialog = true }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = { showInfoDialog = true }) {
@@ -508,6 +529,93 @@ fun MainScreen(
             confirmButton = {
                 TextButton(onClick = { showInfoDialog = false }) {
                     Text("OK")
+                }
+            }
+        )
+    }
+
+    if (showDeleteConfirmDialog && selectedMediaItems.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("Delete Files") },
+            text = { Text("Are you sure you want to delete ${selectedMediaItems.size} items? This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    coroutineScope.launch {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            selectedMediaItems.forEach { media ->
+                                try {
+                                    val uri = media.uri
+                                    if (uri.scheme == "file") {
+                                        val file = java.io.File(uri.path!!)
+                                        if (file.exists()) file.delete()
+                                    } else {
+                                        android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri)
+                                    }
+                                } catch (e: Exception) {
+                                    com.example.LogKeeper.logError("MainScreen", "Error deleting file ${media.name}", e)
+                                }
+                            }
+                        }
+                        viewModel.loadMedia()
+                        selectedMediaItems.clear()
+                        showDeleteConfirmDialog = false
+                    }
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showRenameDialog && selectedMediaItems.size == 1) {
+        val selectedItem = selectedMediaItems.first()
+        val extension = selectedItem.name.substringAfterLast(".", "")
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename File") },
+            text = {
+                OutlinedTextField(
+                    value = renameValue,
+                    onValueChange = { renameValue = it },
+                    label = { Text("New name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    coroutineScope.launch {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            try {
+                                val uri = selectedItem.uri
+                                val hasExt = renameValue.contains(".") && renameValue.substringAfterLast(".") == extension
+                                val newNameWithExt = if (extension.isNotEmpty() && !hasExt) "$renameValue.$extension" else renameValue
+                                if (uri.scheme == "file") {
+                                    val file = java.io.File(uri.path!!)
+                                    file.renameTo(java.io.File(file.parent, newNameWithExt))
+                                } else {
+                                    android.provider.DocumentsContract.renameDocument(context.contentResolver, uri, newNameWithExt)
+                                }
+                            } catch (e: Exception) {
+                                com.example.LogKeeper.logError("MainScreen", "Error renaming file ${selectedItem.name}", e)
+                            }
+                        }
+                        viewModel.loadMedia()
+                        selectedMediaItems.clear()
+                        showRenameDialog = false
+                    }
+                }) {
+                    Text("Rename")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text("Cancel")
                 }
             }
         )

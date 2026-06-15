@@ -39,7 +39,13 @@ class MainActivity : ComponentActivity() {
         } else {
           Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize()) {
-              AppNavigation()
+              var initialIntentUri: String? = null
+              if (intent?.action == android.content.Intent.ACTION_VIEW) {
+                intent?.data?.let { uri ->
+                  initialIntentUri = uri.toString()
+                }
+              }
+              AppNavigation(initialIntentUri = initialIntentUri)
               
               // Global Diagnostic FAB
               val logEnabled by LogKeeper.isEnabled.collectAsState()
