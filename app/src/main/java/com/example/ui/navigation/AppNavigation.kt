@@ -57,7 +57,8 @@ fun AppNavigation(initialIntentUri: String? = null) {
         }
         composable("settings") {
             SettingsScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToPlayerSettings = { navController.navigate("player_settings") }
             )
         }
         composable("playlists") {

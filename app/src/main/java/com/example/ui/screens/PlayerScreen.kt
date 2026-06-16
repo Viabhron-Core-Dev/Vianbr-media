@@ -277,7 +277,28 @@ fun PlayerScreen(
                 }
             })
             if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
-                controller.setMediaItem(MediaItem.Builder().setMediaId(decodedUri.toString()).build())
+                // Try to find the folder this item belongs to
+                val mediaViewModel: com.example.ui.screens.MediaViewModel = androidx.lifecycle.ViewModelProvider(context.findActivity() as androidx.activity.ComponentActivity)[com.example.ui.screens.MediaViewModel::class.java]
+                val allFolders = mediaViewModel.mediaFolders.value
+                var foundFolder: com.example.data.MediaFolder? = null
+                var itemIndex = -1
+                
+                for (folder in allFolders) {
+                    val idx = folder.mediaItems.indexOfFirst { it.uri.toString() == decodedUri.toString() }
+                    if (idx != -1) {
+                        foundFolder = folder
+                        itemIndex = idx
+                        break
+                    }
+                }
+                
+                if (foundFolder != null && itemIndex != -1) {
+                    val mediaItems = foundFolder.mediaItems.map { MediaItem.Builder().setMediaId(it.uri.toString()).build() }
+                    controller.setMediaItems(mediaItems, itemIndex, 0L)
+                } else {
+                    controller.setMediaItem(MediaItem.Builder().setMediaId(decodedUri.toString()).build())
+                }
+                
                 controller.prepare()
                 
                 val lastPos = settingsManager.getPlaybackPosition(decodedUriString)
@@ -287,6 +308,26 @@ fun PlayerScreen(
             }
             
             controller.play()
+            
+            val listener = object : androidx.media3.common.Player.Listener {
+                override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        try {
+                            val width = videoSize.width
+                            val height = videoSize.height
+                            if (width > 0 && height > 0) {
+                                context.findActivity()?.setPictureInPictureParams(
+                                    PictureInPictureParams.Builder()
+                                        .setAutoEnterEnabled(true)
+                                        .setAspectRatio(android.util.Rational(width, height))
+                                        .build()
+                                )
+                            }
+                        } catch(e: Exception) {}
+                    }
+                }
+            }
+            controller.addListener(listener)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 context.findActivity()?.setPictureInPictureParams(
@@ -347,7 +388,11 @@ fun PlayerScreen(
         }
     }
 
-    var isInPipMode by remember { mutableStateOf(false) }
+    var isInPipMode by remember { 
+        val activity = context.findActivity() as? androidx.activity.ComponentActivity
+        val isPipInitially = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) activity?.isInPictureInPictureMode == true else false
+        mutableStateOf(isPipInitially) 
+    }
 
     DisposableEffect(lifecycleOwner) {
         val activity = context.findActivity() as? androidx.activity.ComponentActivity
@@ -626,6 +671,7 @@ fun PlayerScreen(
                                 Icon(Icons.Filled.Subtitles, contentDescription = "Subtitles", tint = Color.White)
                             }
                             Box {
+                                var showDetailsDialog by remember { mutableStateOf(false) }
                                 IconButton(onClick = { showTopMenu = true }) {
                                     Icon(Icons.Filled.MoreVert, contentDescription = "More options", tint = Color.White)
                                 }
@@ -635,13 +681,36 @@ fun PlayerScreen(
                                 ) {
                                     androidx.compose.material3.DropdownMenuItem(
                                         text = { Text("Details") },
-                                        onClick = { showTopMenu = false }
+                                        onClick = { 
+                                            showTopMenu = false
+                                            showDetailsDialog = true 
+                                        }
                                     )
                                     androidx.compose.material3.DropdownMenuItem(
                                         text = { Text("Player settings") },
                                         onClick = {
                                             showTopMenu = false
                                             onNavigateToPlayerSettings()
+                                        }
+                                    )
+                                }
+                                
+                                if (showDetailsDialog) {
+                                    androidx.compose.material3.AlertDialog(
+                                        onDismissRequest = { showDetailsDialog = false },
+                                        title = { Text("Media Details", color = MaterialTheme.colorScheme.onSurface) },
+                                        text = { 
+                                            Column {
+                                                Text("URI:", style = MaterialTheme.typography.labelSmall)
+                                                Text(decodedUriString, style = MaterialTheme.typography.bodySmall)
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text("Size:", style = MaterialTheme.typography.labelSmall)
+                                                val videoSize = mediaController?.videoSize
+                                                Text("${videoSize?.width ?: "?"}x${videoSize?.height ?: "?"}", style = MaterialTheme.typography.bodySmall)
+                                            }
+                                        },
+                                        confirmButton = {
+                                            androidx.compose.material3.TextButton(onClick = { showDetailsDialog = false }) { Text("Close") }
                                         }
                                     )
                                 }
@@ -849,22 +918,28 @@ fun PlayerScreen(
                             }
                             IconButton(onClick = {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
-                                    val isAllowed = appOps.checkOpNoThrow(
-                                        android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
-                                        android.os.Process.myUid(),
-                                        context.packageName
-                                    ) == android.app.AppOpsManager.MODE_ALLOWED
-
-                                    if (isAllowed) {
-                                        context.findActivity()?.enterPictureInPictureMode(PictureInPictureParams.Builder().build())
-                                    } else {
-                                        context.startActivity(
-                                            android.content.Intent(
-                                                "android.settings.PICTURE_IN_PICTURE_SETTINGS",
-                                                android.net.Uri.parse("package:${context.packageName}")
+                                    try {
+                                        val builder = PictureInPictureParams.Builder()
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                            builder.setAutoEnterEnabled(true)
+                                        }
+                                        val width = mediaController?.videoSize?.width
+                                        val height = mediaController?.videoSize?.height
+                                        if (width != null && height != null && width > 0 && height > 0) {
+                                            builder.setAspectRatio(android.util.Rational(width, height))
+                                        }
+                                        context.findActivity()?.enterPictureInPictureMode(builder.build())
+                                    } catch (e: Exception) {
+                                        try {
+                                            context.startActivity(
+                                                android.content.Intent(
+                                                    "android.settings.PICTURE_IN_PICTURE_SETTINGS",
+                                                    android.net.Uri.parse("package:${context.packageName}")
+                                                )
                                             )
-                                        )
+                                        } catch (e2: Exception) {
+                                            // Ignore if settings intent fails
+                                        }
                                     }
                                 }
                             }) {

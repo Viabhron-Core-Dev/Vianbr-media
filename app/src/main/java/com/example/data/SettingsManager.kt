@@ -15,12 +15,17 @@ class SettingsManager private constructor(context: Context) {
     private val _extensions = MutableStateFlow<List<String>>(emptyList())
     val extensions: StateFlow<List<String>> = _extensions.asStateFlow()
 
+    private val _showLoggerFab = MutableStateFlow(true)
+    val showLoggerFab: StateFlow<Boolean> = _showLoggerFab.asStateFlow()
+
     init {
         val excludedStrSet = prefs.getStringSet("excluded_folders", emptySet())
         if (!excludedStrSet.isNullOrEmpty()) {
             _excludedFolders.value = excludedStrSet
         }
         
+        _showLoggerFab.value = prefs.getBoolean("show_logger_fab", true)
+
         val defaultExts = setOf("mp4", "mkv", "mp3", "webm", "3gp", "avi", "mov", "flv", "wmv", "m4v", "aac", "wav", "flac")
         val savedExts = prefs.getStringSet("extensions", null)
         
@@ -52,6 +57,11 @@ class SettingsManager private constructor(context: Context) {
     fun setExtensions(exts: List<String>) {
         _extensions.value = exts
         prefs.edit().putStringSet("extensions", exts.toSet()).apply()
+    }
+
+    fun setShowLoggerFab(show: Boolean) {
+        _showLoggerFab.value = show
+        prefs.edit().putBoolean("show_logger_fab", show).apply()
     }
 
     fun savePlaybackState(uri: String, position: Long, duration: Long) {

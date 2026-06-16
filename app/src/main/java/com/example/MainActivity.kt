@@ -26,6 +26,17 @@ import com.example.ui.screens.LoggerScreen
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
+  override fun onUserLeaveHint() {
+      super.onUserLeaveHint()
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+          try {
+              enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().build())
+          } catch (e: Exception) {
+              // ignore if not supported
+          }
+      }
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     
@@ -78,15 +89,20 @@ class MainActivity : ComponentActivity() {
               
               // Global Diagnostic FAB
               val logEnabled by LogKeeper.isEnabled.collectAsState()
-              FloatingActionButton(
-                onClick = { isLoggerOpen = true },
-                modifier = Modifier
-                  .align(Alignment.BottomStart)
-                  .padding(innerPadding)
-                  .padding(16.dp),
-                containerColor = if (logEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-              ) {
-                Icon(Icons.Filled.BugReport, contentDescription = "Open Logger")
+              val settingsManager = remember { com.example.data.SettingsManager.getInstance(applicationContext) }
+              val showLoggerFab by settingsManager.showLoggerFab.collectAsState()
+              
+              if (showLoggerFab) {
+                  FloatingActionButton(
+                    onClick = { isLoggerOpen = true },
+                    modifier = Modifier
+                      .align(Alignment.BottomStart)
+                      .padding(innerPadding)
+                      .padding(16.dp),
+                    containerColor = if (logEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                  ) {
+                    Icon(Icons.Filled.BugReport, contentDescription = "Open Logger")
+                  }
               }
             }
           }

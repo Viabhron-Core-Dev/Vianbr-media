@@ -13,18 +13,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -96,11 +97,18 @@ fun MainScreen(
     var showDeleteConfirmDialog by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var renameValue by rememberSaveable { mutableStateOf("") }
+    
+    var isSearchActive by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
 
-    BackHandler(enabled = isMultiSelectMode) {
+    BackHandler(enabled = isSearchActive) {
+        isSearchActive = false
+        searchQuery = ""
+    }
+    BackHandler(enabled = isMultiSelectMode && !isSearchActive) {
         selectedMediaItems.clear()
     }
-    BackHandler(enabled = !isMultiSelectMode && selectedFolder != null) {
+    BackHandler(enabled = !isMultiSelectMode && !isSearchActive && selectedFolder != null) {
         selectedFolderId = null
     }
 
@@ -108,14 +116,35 @@ fun MainScreen(
         topBar = {
             TopAppBar(
                 title = { 
-                    if (isMultiSelectMode) {
+                    if (isSearchActive) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Search...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            textStyle = MaterialTheme.typography.bodyLarge,
+                            shape = RoundedCornerShape(25.dp),
+                            colors = TextFieldDefaults.colors(
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent,
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        )
+                    } else if (isMultiSelectMode) {
                         Text("${selectedMediaItems.size}/${selectedFolder?.mediaItems?.size ?: 0} Selected")
                     } else {
                         Text(selectedFolder?.name ?: "Vianbr Play")
                     }
                 },
                 navigationIcon = {
-                    if (isMultiSelectMode) {
+                    if (isSearchActive) {
+                        IconButton(onClick = { isSearchActive = false; searchQuery = "" }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close Search")
+                        }
+                    } else if (isMultiSelectMode) {
                         IconButton(onClick = { selectedMediaItems.clear() }) {
                             Icon(Icons.Filled.Close, contentDescription = "Clear Selection")
                         }
@@ -126,7 +155,13 @@ fun MainScreen(
                     }
                 },
                 actions = {
-                    if (isMultiSelectMode) {
+                    if (isSearchActive) {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Filled.Close, contentDescription = "Clear Search")
+                            }
+                        }
+                    } else if (isMultiSelectMode) {
                         IconButton(onClick = { 
                             if (selectedMediaItems.isNotEmpty()) {
                                 onNavigateToPlayer(selectedMediaItems.first().uri.toString())
@@ -136,21 +171,26 @@ fun MainScreen(
                             Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
                         }
                         IconButton(onClick = { showAddToPlaylistDialog = true }) {
-                            Icon(Icons.Filled.PlaylistAdd, contentDescription = "Add to Playlist")
+                            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = "Add to Playlist")
                         }
                     } else {
+                        IconButton(onClick = { 
+                            isSearchActive = true 
+                        }) {
+                            Icon(Icons.Filled.Search, contentDescription = "Search")
+                        }
+                        IconButton(onClick = onNavigateToPlaylists) {
+                            Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Playlists")
+                        }
                         Box {
                             IconButton(onClick = { showSortMenu = true }) {
-                                Icon(Icons.Filled.Sort, contentDescription = "Sort")
+                                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
                             }
                             DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                                 DropdownMenuItem(text = { Text("Sort by Name") }, onClick = { sortOrder = SortOrder.NAME; showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Sort by Date") }, onClick = { sortOrder = SortOrder.DATE; showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Sort by Size") }, onClick = { sortOrder = SortOrder.SIZE; showSortMenu = false })
                             }
-                        }
-                        IconButton(onClick = onNavigateToPlaylists) {
-                            Icon(Icons.Filled.PlaylistPlay, contentDescription = "Playlists")
                         }
                         IconButton(onClick = onNavigateToSettings) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings")
@@ -242,7 +282,7 @@ fun MainScreen(
                                 modifier = Modifier.align(Alignment.Center)
                             )
                         }
-                    } else if (selectedFolder == null) {
+                    } else if (selectedFolder == null && !isSearchActive) {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(16.dp)
@@ -273,23 +313,34 @@ fun MainScreen(
                             }
                         }
                     } else {
-                        val folder = selectedFolder!!
+                        val itemsToDisplay = if (selectedFolder != null) {
+                            selectedFolder.mediaItems
+                        } else {
+                            mediaFolders.flatMap { it.mediaItems }
+                        }
+                        
+                        val filteredMedia = if (isSearchActive) {
+                            itemsToDisplay.filter { it.name.contains(searchQuery, ignoreCase = true) }
+                        } else {
+                            itemsToDisplay
+                        }
+
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(16.dp)
                         ) {
                             item {
                                 Text(
-                                    text = "Found ${folder.mediaItems.size} Media Files",
+                                    text = "Found ${filteredMedia.size} Media Files",
                                     style = MaterialTheme.typography.titleMedium,
                                     modifier = Modifier.padding(bottom = 16.dp),
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
                             val sortedMediaItems = when (sortOrder) {
-                                SortOrder.NAME -> folder.mediaItems.sortedBy { it.name.lowercase() }
-                                SortOrder.DATE -> folder.mediaItems.sortedByDescending { it.dateAdded }
-                                SortOrder.SIZE -> folder.mediaItems.sortedByDescending { it.size }
+                                SortOrder.NAME -> filteredMedia.sortedBy { it.name.lowercase() }
+                                SortOrder.DATE -> filteredMedia.sortedByDescending { it.dateAdded }
+                                SortOrder.SIZE -> filteredMedia.sortedByDescending { it.size }
                             }
                             items(sortedMediaItems) { media ->
                                 val isSelected = selectedMediaItems.contains(media)
@@ -377,7 +428,10 @@ fun MainScreen(
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                             Spacer(modifier = Modifier.height(4.dp))
-                                            val pathStr = folder.path.replace("primary:", "/storage/emulated/0/") + "/" + folder.name
+                                            val parentFolder = if (selectedFolder != null) selectedFolder else mediaFolders.find { it.mediaItems.contains(media) }
+                                            val pathStr = parentFolder?.let {
+                                                it.path.replace("primary:", "/storage/emulated/0/") + "/" + it.name
+                                            } ?: "Unknown path"
                                             Text(
                                                 text = pathStr,
                                                 style = MaterialTheme.typography.bodySmall,
@@ -546,7 +600,13 @@ fun MainScreen(
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
             title = { Text("Delete Files") },
-            text = { Text("Are you sure you want to delete ${selectedMediaItems.size} items? This cannot be undone.") },
+            text = { 
+                val totalSize = selectedMediaItems.sumOf { it.size }
+                val sizeStr = if (totalSize > 1024L * 1024 * 1024) String.format(java.util.Locale.US, "%.2f GB", totalSize / (1024f * 1024f * 1024f))
+                              else if (totalSize > 1024 * 1024) String.format(java.util.Locale.US, "%.2f MB", totalSize / (1024f * 1024f))
+                              else String.format(java.util.Locale.US, "%.2f KB", totalSize / 1024f)
+                Text("Are you sure you want to delete ${selectedMediaItems.size} items? ($sizeStr)\nThis cannot be undone.") 
+            },
             confirmButton = {
                 TextButton(onClick = {
                     coroutineScope.launch {
@@ -606,22 +666,42 @@ fun MainScreen(
                                 val uri = selectedItem.uri
                                 val hasExt = renameValue.contains(".") && renameValue.substringAfterLast(".") == extension
                                 val newNameWithExt = if (extension.isNotEmpty() && !hasExt) "$renameValue.$extension" else renameValue
+                                
+                                var path: String? = null
                                 if (uri.scheme == "file") {
-                                    val file = java.io.File(uri.path!!)
-                                    file.renameTo(java.io.File(file.parent, newNameWithExt))
+                                    path = uri.path
+                                } else if (uri.scheme == "content" && !android.provider.DocumentsContract.isDocumentUri(context, uri)) {
+                                    context.contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { cursor ->
+                                        if (cursor.moveToFirst()) {
+                                            val idx = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATA)
+                                            if (idx != -1) path = cursor.getString(idx)
+                                        }
+                                    }
+                                }
+
+                                if (path != null) {
+                                    val file = java.io.File(path!!)
+                                    if (file.exists()) {
+                                        val newFile = java.io.File(file.parent, newNameWithExt)
+                                        if (file.renameTo(newFile)) {
+                                            try {
+                                                val values = android.content.ContentValues().apply {
+                                                    put(android.provider.MediaStore.MediaColumns.DATA, newFile.absolutePath)
+                                                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, newNameWithExt)
+                                                }
+                                                context.contentResolver.update(uri, values, null, null)
+                                            } catch (e: Exception) {
+                                                android.media.MediaScannerConnection.scanFile(context, arrayOf(newFile.absolutePath), null, null)
+                                            }
+                                        }
+                                    }
+                                } else if (android.provider.DocumentsContract.isDocumentUri(context, uri)) {
+                                    android.provider.DocumentsContract.renameDocument(context.contentResolver, uri, newNameWithExt)
                                 } else {
                                     val values = android.content.ContentValues().apply {
                                         put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, newNameWithExt)
-                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                            put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
-                                        }
                                     }
                                     context.contentResolver.update(uri, values, null, null)
-                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                        values.clear()
-                                        values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
-                                        context.contentResolver.update(uri, values, null, null)
-                                    }
                                 }
                             } catch (e: Exception) {
                                 com.example.LogKeeper.logError("MainScreen", "Error renaming file ${selectedItem.name}", e)

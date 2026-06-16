@@ -25,7 +25,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onNavigateBack: () -> Unit) {
+fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateToPlayerSettings: () -> Unit = {}) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
     
@@ -34,6 +34,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
     
     val excludedFolders by settingsManager.excludedFolders.collectAsState()
     val extensions by settingsManager.extensions.collectAsState()
+    val showLoggerFab by settingsManager.showLoggerFab.collectAsState()
+    val isLoggerEnabled by LogKeeper.isEnabled.collectAsState()
 
     var showExcludeDialog by remember { mutableStateOf(false) }
 
@@ -94,6 +96,35 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             Text("Media Configuration", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
             Text("Inclusion Extensions: ${extensions.joinToString(", ")}", style = MaterialTheme.typography.bodyMedium)
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Text("Player Settings", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = onNavigateToPlayerSettings) {
+                Text("Open Player Settings")
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Text("Developer Settings", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Text("Enable Background Logger", modifier = Modifier.weight(1f))
+                Switch(checked = isLoggerEnabled, onCheckedChange = { LogKeeper.toggleLogger() })
+            }
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Text("Show Logger FAB", modifier = Modifier.weight(1f))
+                Switch(checked = showLoggerFab, onCheckedChange = { settingsManager.setShowLoggerFab(it) })
+            }
         }
         
         if (showExcludeDialog) {
