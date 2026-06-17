@@ -53,6 +53,7 @@ import coil.imageLoader
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.decode.VideoFrameDecoder
+import coil.request.videoFrameMillis
 import com.example.data.AppDatabase
 import com.example.data.Playlist
 import com.example.data.PlaylistItem
@@ -63,18 +64,19 @@ import com.example.data.MediaItem
 import com.example.data.PlaybackTag
 import com.example.data.SettingsManager
 
-enum class SortOrder { NAME, DATE, SIZE }
+enum class SortOrder { NAME, DATE }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(
-    onNavigateToSettings: () -> Unit,
     onNavigateToPlayer: (String) -> Unit = {},
     onNavigateToPlaylists: () -> Unit = {}
 ) {
     val viewModel: MediaViewModel = viewModel()
     val mediaFolders by viewModel.mediaFolders.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+
+    var showSettingsDialog by rememberSaveable { mutableStateOf(false) }
 
     var selectedFolderId by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedFolder = mediaFolders.find { it.id == selectedFolderId }
@@ -189,10 +191,9 @@ fun MainScreen(
                             DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                                 DropdownMenuItem(text = { Text("Sort by Name") }, onClick = { sortOrder = SortOrder.NAME; showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Sort by Date") }, onClick = { sortOrder = SortOrder.DATE; showSortMenu = false })
-                                DropdownMenuItem(text = { Text("Sort by Size") }, onClick = { sortOrder = SortOrder.SIZE; showSortMenu = false })
                             }
                         }
-                        IconButton(onClick = onNavigateToSettings) {
+                        IconButton(onClick = { showSettingsDialog = true }) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings")
                         }
                     }
@@ -209,10 +210,6 @@ fun MainScreen(
                             showRenameDialog = true 
                         }) {
                             Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = "Rename")
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        IconButton(onClick = { /* Placeholder for Edit */ }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Edit")
                         }
                         Spacer(modifier = Modifier.weight(1f))
                     }
@@ -298,7 +295,6 @@ fun MainScreen(
                             val sortedFolders = when (sortOrder) {
                                 SortOrder.NAME -> mediaFolders.sortedBy { it.name.lowercase() }
                                 SortOrder.DATE -> mediaFolders.sortedByDescending { it.dateModified }
-                                SortOrder.SIZE -> mediaFolders.sortedByDescending { folder -> folder.mediaItems.sumOf { it.size } }
                             }
                             val settingsManager = SettingsManager.getInstance(context)
                             items(sortedFolders) { folder ->
@@ -340,7 +336,6 @@ fun MainScreen(
                             val sortedMediaItems = when (sortOrder) {
                                 SortOrder.NAME -> filteredMedia.sortedBy { it.name.lowercase() }
                                 SortOrder.DATE -> filteredMedia.sortedByDescending { it.dateAdded }
-                                SortOrder.SIZE -> filteredMedia.sortedByDescending { it.size }
                             }
                             items(sortedMediaItems) { media ->
                                 val isSelected = selectedMediaItems.contains(media)
@@ -377,10 +372,10 @@ fun MainScreen(
                                             AsyncImage(
                                                 model = ImageRequest.Builder(context)
                                                     .data(media.uri)
-                                                    .decoderFactory(VideoFrameDecoder.Factory())
+                                                    .size(200)
+                                                    .videoFrameMillis(0) // Fast load first frame
                                                     .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                                                     .diskCachePolicy(coil.request.CachePolicy.ENABLED)
-                                                    .networkCachePolicy(coil.request.CachePolicy.DISABLED)
                                                     .crossfade(true)
                                                     .build(),
                                                 contentDescription = "Thumbnail",
@@ -439,21 +434,6 @@ fun MainScreen(
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Card(
-                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                                                shape = RoundedCornerShape(4.dp)
-                                            ) {
-                                                val sizeMb = media.size.toFloat() / (1024f * 1024f)
-                                                val sizeStr = String.format("%.2f MB", sizeMb)
-                                                Text(
-                                                    text = sizeStr,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
                                         }
                                     }
                                 }
@@ -559,7 +539,29 @@ fun MainScreen(
     }
 
     if (showInfoDialog && selectedMediaItems.isNotEmpty()) {
-        val totalSize = selectedMediaItems.sumOf { it.size }
+        var totalSize by remember(selectedMediaItems) { mutableLongStateOf(0L) }
+        var singleItemPath by remember(selectedMediaItems) { mutableStateOf("Unknown") }
+        
+        LaunchedEffect(selectedMediaItems) {
+            var calcSize = 0L
+            val contextResolver = context.contentResolver
+            for (item in selectedMediaItems) {
+                try {
+                    contextResolver.query(item.uri, arrayOf(android.provider.MediaStore.MediaColumns.SIZE, android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            calcSize += cursor.getLong(0)
+                            if (selectedMediaItems.size == 1) {
+                                singleItemPath = cursor.getString(1) ?: item.uri.toString()
+                            }
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+            totalSize = calcSize
+            if (selectedMediaItems.size == 1 && singleItemPath == "Unknown") {
+               singleItemPath = selectedMediaItems.first().uri.toString()
+            }
+        }
         val sizeInMB = totalSize / (1024 * 1024)
         
         AlertDialog(
@@ -569,7 +571,7 @@ fun MainScreen(
                 Column {
                     if (selectedMediaItems.size == 1) {
                         val item = selectedMediaItems.first()
-                        val sizeStr = if (item.size > 1024 * 1024) "${item.size / (1024 * 1024)} MB" else "${item.size / 1024} KB"
+                        val sizeStr = if (totalSize > 1024 * 1024) "${totalSize / (1024 * 1024)} MB" else "${totalSize / 1024} KB"
                         val durationStr = if (item.duration > 0) String.format(java.util.Locale.US, "%02d:%02d", java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(item.duration), java.util.concurrent.TimeUnit.MILLISECONDS.toSeconds(item.duration) % 60) else "Unknown"
                         val dateFormatted = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(item.dateAdded))
                         Text("Name: ${item.name}", style = MaterialTheme.typography.bodyLarge)
@@ -580,7 +582,7 @@ fun MainScreen(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Modified: $dateFormatted", style = MaterialTheme.typography.bodyLarge)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Path: ${item.uri.path}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Path: $singleItemPath", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         Text("Items selected: ${selectedMediaItems.size}", style = MaterialTheme.typography.bodyLarge)
                         Spacer(modifier = Modifier.height(8.dp))
@@ -601,11 +603,7 @@ fun MainScreen(
             onDismissRequest = { showDeleteConfirmDialog = false },
             title = { Text("Delete Files") },
             text = { 
-                val totalSize = selectedMediaItems.sumOf { it.size }
-                val sizeStr = if (totalSize > 1024L * 1024 * 1024) String.format(java.util.Locale.US, "%.2f GB", totalSize / (1024f * 1024f * 1024f))
-                              else if (totalSize > 1024 * 1024) String.format(java.util.Locale.US, "%.2f MB", totalSize / (1024f * 1024f))
-                              else String.format(java.util.Locale.US, "%.2f KB", totalSize / 1024f)
-                Text("Are you sure you want to delete ${selectedMediaItems.size} items? ($sizeStr)\nThis cannot be undone.") 
+                Text("Are you sure you want to delete ${selectedMediaItems.size} items? \nThis cannot be undone.") 
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -722,6 +720,17 @@ fun MainScreen(
             }
         )
     }
+
+    if (showSettingsDialog) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showSettingsDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            SettingsScreen(onNavigateBack = { showSettingsDialog = false })
+        }
+    }
 }
 
 @Composable
@@ -763,15 +772,6 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                val displayPath = folder.path.replace("primary:", "/storage/emulated/0/")
-                Text(
-                    text = displayPath,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
                 Spacer(modifier = Modifier.height(6.dp))
                 Row {
                     Card(
@@ -780,20 +780,6 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                     ) {
                         Text(
                             text = "${folder.videoCount} Videos",
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        val sizeMb = folder.totalSize / (1024 * 1024)
-                        val sizeStr = if (sizeMb > 1024) String.format("%.2f GB", sizeMb / 1024f) else "$sizeMb MB"
-                        Text(
-                            text = sizeStr,
                             style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -43,9 +43,6 @@ fun AppNavigation(initialIntentUri: String? = null) {
         }
         composable("main") {
             MainScreen(
-                onNavigateToSettings = {
-                    navController.navigate("settings")
-                },
                 onNavigateToPlayer = { uri ->
                     val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("player/$encodedUri")
@@ -53,12 +50,6 @@ fun AppNavigation(initialIntentUri: String? = null) {
                 onNavigateToPlaylists = {
                     navController.navigate("playlists")
                 }
-            )
-        }
-        composable("settings") {
-            SettingsScreen(
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToPlayerSettings = { navController.navigate("player_settings") }
             )
         }
         composable("playlists") {
@@ -94,13 +85,7 @@ fun AppNavigation(initialIntentUri: String? = null) {
                     if (!navController.popBackStack()) {
                         (context as? android.app.Activity)?.finish()
                     }
-                },
-                onNavigateToPlayerSettings = { navController.navigate("player_settings") }
-            )
-        }
-        composable("player_settings") {
-            com.example.ui.screens.PlayerSettingsScreen(
-                onNavigateBack = { navController.popBackStack() }
+                }
             )
         }
     }

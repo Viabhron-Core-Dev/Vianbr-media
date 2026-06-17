@@ -25,9 +25,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateToPlayerSettings: () -> Unit = {}) {
+fun SettingsScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
+    var showPlayerSettingsDialog by remember { mutableStateOf(false) }
     
     val viewModel: MediaViewModel = viewModel()
     val mediaFolders by viewModel.mediaFolders.collectAsState()
@@ -101,8 +102,17 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateToPlayerSettings: () ->
             
             Text("Player Settings", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onNavigateToPlayerSettings) {
+            Button(onClick = { showPlayerSettingsDialog = true }) {
                 Text("Open Player Settings")
+            }
+            
+            if (showPlayerSettingsDialog) {
+                androidx.compose.ui.window.Dialog(
+                    onDismissRequest = { showPlayerSettingsDialog = false },
+                    properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    PlayerSettingsScreen(onNavigateBack = { showPlayerSettingsDialog = false })
+                }
             }
             
             Spacer(modifier = Modifier.height(24.dp))

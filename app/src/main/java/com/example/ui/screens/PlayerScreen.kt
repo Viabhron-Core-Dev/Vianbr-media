@@ -145,11 +145,11 @@ fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
 @Composable
 fun PlayerScreen(
     uriString: String,
-    onNavigateBack: () -> Unit,
-    onNavigateToPlayerSettings: () -> Unit = {}
+    onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    var showPlayerSettingsDialog by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
     var resizeMode by remember { androidx.compose.runtime.mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
@@ -242,9 +242,10 @@ fun PlayerScreen(
         }
     }
 
+    val decodedUriString = remember(uriString) { String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)) }
+    val decodedUri = remember(uriString) { Uri.parse(decodedUriString) }
+
     LaunchedEffect(uriString) {
-        val decodedUriString = String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
-        val decodedUri = Uri.parse(decodedUriString)
         val settingsManager = com.example.data.SettingsManager.getInstance(context)
         com.example.LogKeeper.log("Starting player for $decodedUri", "PlayerScreen")
         val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -340,7 +341,6 @@ fun PlayerScreen(
     }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    val decodedUriString = String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
 
     DisposableEffect(lifecycleOwner, mediaController) {
         val currentController = mediaController
@@ -672,6 +672,51 @@ fun PlayerScreen(
                             }
                             Box {
                                 var showDetailsDialog by remember { mutableStateOf(false) }
+                                
+                                var detailsName by remember { mutableStateOf("Unknown") }
+                                var detailsSize by remember { mutableStateOf("Unknown") }
+                                var detailsDate by remember { mutableStateOf("Unknown") }
+                                var detailsPath by remember { mutableStateOf("Unknown") }
+                                
+                                LaunchedEffect(decodedUri) {
+                                    detailsName = decodedUri.lastPathSegment ?: "Unknown"
+                                    detailsPath = decodedUri.toString()
+                                    if (decodedUri.scheme == "file") {
+                                        try {
+                                            val file = java.io.File(decodedUri.path!!)
+                                            detailsName = file.name
+                                            val size = file.length()
+                                            detailsSize = if (size > 1024 * 1024) "${size / (1024 * 1024)} MB" else "${size / 1024} KB"
+                                            detailsDate = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(file.lastModified()))
+                                            detailsPath = file.absolutePath
+                                        } catch (e: Exception) {}
+                                    } else if (decodedUri.scheme == "content") {
+                                        try {
+                                            context.contentResolver.query(decodedUri, null, null, null, null)?.use { cursor ->
+                                                if (cursor.moveToFirst()) {
+                                                    val nameCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
+                                                    if (nameCol != -1) cursor.getString(nameCol)?.let { detailsName = it }
+                                                    val sizeCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.SIZE)
+                                                    if (sizeCol != -1) {
+                                                        val size = cursor.getLong(sizeCol)
+                                                        detailsSize = if (size > 1024 * 1024) "${size / (1024 * 1024)} MB" else "${size / 1024} KB"
+                                                    }
+                                                    val dateCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATE_ADDED)
+                                                    if (dateCol != -1) {
+                                                        val dateAdded = cursor.getLong(dateCol)
+                                                        val dateMs = if (dateAdded < 10000000000L) dateAdded * 1000 else dateAdded
+                                                        if (dateMs > 0) {
+                                                            detailsDate = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(dateMs))
+                                                        }
+                                                    }
+                                                    val dataCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATA)
+                                                    if (dataCol != -1) cursor.getString(dataCol)?.let { detailsPath = it }
+                                                }
+                                            }
+                                        } catch (e: Exception) {}
+                                    }
+                                }
+
                                 IconButton(onClick = { showTopMenu = true }) {
                                     Icon(Icons.Filled.MoreVert, contentDescription = "More options", tint = Color.White)
                                 }
@@ -690,27 +735,33 @@ fun PlayerScreen(
                                         text = { Text("Player settings") },
                                         onClick = {
                                             showTopMenu = false
-                                            onNavigateToPlayerSettings()
+                                            showPlayerSettingsDialog = true
                                         }
                                     )
                                 }
                                 
                                 if (showDetailsDialog) {
+                                    val duration = mediaController?.duration ?: 0L
+                                    val durationStr = if (duration > 0) String.format(java.util.Locale.US, "%02d:%02d", java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(duration), java.util.concurrent.TimeUnit.MILLISECONDS.toSeconds(duration) % 60) else "Unknown"
+                                    
                                     androidx.compose.material3.AlertDialog(
                                         onDismissRequest = { showDetailsDialog = false },
-                                        title = { Text("Media Details", color = MaterialTheme.colorScheme.onSurface) },
+                                        title = { Text("Properties", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
                                         text = { 
                                             Column {
-                                                Text("URI:", style = MaterialTheme.typography.labelSmall)
-                                                Text(decodedUriString, style = MaterialTheme.typography.bodySmall)
+                                                Text("Name: $detailsName", style = MaterialTheme.typography.bodyLarge)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text("Size: $detailsSize", style = MaterialTheme.typography.bodyLarge)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text("Duration: $durationStr", style = MaterialTheme.typography.bodyLarge)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text("Date Added: $detailsDate", style = MaterialTheme.typography.bodyLarge)
                                                 Spacer(modifier = Modifier.height(8.dp))
-                                                Text("Size:", style = MaterialTheme.typography.labelSmall)
-                                                val videoSize = mediaController?.videoSize
-                                                Text("${videoSize?.width ?: "?"}x${videoSize?.height ?: "?"}", style = MaterialTheme.typography.bodySmall)
+                                                Text("Path: $detailsPath", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             }
                                         },
                                         confirmButton = {
-                                            androidx.compose.material3.TextButton(onClick = { showDetailsDialog = false }) { Text("Close") }
+                                            androidx.compose.material3.TextButton(onClick = { showDetailsDialog = false }) { Text("OK") }
                                         }
                                     )
                                 }
@@ -1209,6 +1260,15 @@ fun PlayerScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (showPlayerSettingsDialog) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showPlayerSettingsDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            com.example.ui.screens.PlayerSettingsScreen(onNavigateBack = { showPlayerSettingsDialog = false })
         }
     }
 }

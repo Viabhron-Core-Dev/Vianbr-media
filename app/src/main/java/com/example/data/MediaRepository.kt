@@ -15,7 +15,6 @@ data class MediaItem(
     val id: Long,
     val uri: Uri,
     val name: String,
-    val size: Long,
     val duration: Long, // in milliseconds
     val dateAdded: Long,
     val mediaType: MediaType,
@@ -30,7 +29,6 @@ data class MediaFolder(
     val dateModified: Long,
     val mediaItems: List<MediaItem>
 ) {
-    val totalSize: Long get() = mediaItems.sumOf { it.size }
     val videoCount: Int get() = mediaItems.size
     val totalDuration: Long get() = mediaItems.sumOf { it.duration }
 }
@@ -59,9 +57,7 @@ class MediaRepository(private val context: Context) {
         try {
             val projection = arrayOf(
                 android.provider.MediaStore.Video.Media._ID,
-                android.provider.MediaStore.Video.Media.DATA,
                 android.provider.MediaStore.Video.Media.DISPLAY_NAME,
-                android.provider.MediaStore.Video.Media.SIZE,
                 android.provider.MediaStore.Video.Media.DURATION,
                 android.provider.MediaStore.Video.Media.DATE_MODIFIED,
                 android.provider.MediaStore.Video.Media.BUCKET_ID,
@@ -73,9 +69,7 @@ class MediaRepository(private val context: Context) {
                 projection, null, null, null
             )?.use { cursor ->
                 val idCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media._ID)
-                val dataCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DATA)
                 val nameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DISPLAY_NAME)
-                val sizeCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.SIZE)
                 val durCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DURATION)
                 val dateCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DATE_MODIFIED)
                 val bucketIdCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.BUCKET_ID)
@@ -93,8 +87,6 @@ class MediaRepository(private val context: Context) {
                     if (!exts.contains(ext) && !ext.isEmpty()) continue
 
                     val id = cursor.getLong(idCol)
-                    val data = cursor.getString(dataCol) ?: ""
-                    val size = cursor.getLong(sizeCol)
                     val dur = cursor.getLong(durCol)
                     val dateMs = cursor.getLong(dateCol) * 1000
                     val bucketName = cursor.getString(bucketNameCol) ?: "Unknown Folder"
@@ -117,7 +109,6 @@ class MediaRepository(private val context: Context) {
                         id = id,
                         uri = uri,
                         name = name,
-                        size = size,
                         duration = dur,
                         dateAdded = dateMs,
                         mediaType = MediaType.VIDEO,
@@ -127,7 +118,7 @@ class MediaRepository(private val context: Context) {
 
                     foldersMap.getOrPut(bucketId) { mutableListOf() }.add(item)
                     folderNames[bucketId] = bucketName
-                    folderPaths[bucketId] = data.substringBeforeLast('/', "")
+                    folderPaths[bucketId] = "" // No data available, empty folder path
                     val existingDate = folderDates[bucketId] ?: 0L
                     if (dateMs > existingDate) {
                         folderDates[bucketId] = dateMs
@@ -199,7 +190,7 @@ class MediaRepository(private val context: Context) {
                         if (extensions.contains(ext) || (ext.isEmpty() && mimeType.startsWith("video/"))) {
                             val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
                             val mediaType = if (mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v")) MediaType.VIDEO else MediaType.AUDIO
-                            mediaItems.add(MediaItem(docId.hashCode().toLong(), uri, name, size, 0L, date, mediaType, false))
+                            mediaItems.add(MediaItem(id = docId.hashCode().toLong(), uri = uri, name = name, duration = 0L, dateAdded = date, mediaType = mediaType, hasSubtitle = false))
                         } else if (ext in listOf("srt", "vtt", "ass", "sub")) {
                             subtitleFiles.add(name.substringBeforeLast('.').lowercase())
                         }
@@ -220,7 +211,7 @@ class MediaRepository(private val context: Context) {
                 val hasSub = subtitleFiles.contains(baseName)
                 
                 // Extract duration safely from map
-                val duration = durationMap["${item.name}_${item.size}"] ?: 0L
+                val duration = durationMap[item.name] ?: 0L
                 
                 val uriStr = item.uri.toString()
                 val isFinished = settingsManager.isFinished(uriStr)

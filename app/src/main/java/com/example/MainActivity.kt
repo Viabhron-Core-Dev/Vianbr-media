@@ -40,6 +40,26 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     
+    coil.Coil.setImageLoader(
+        coil.ImageLoader.Builder(this)
+            .components {
+                add(coil.decode.VideoFrameDecoder.Factory())
+            }
+            .memoryCache {
+                coil.memory.MemoryCache.Builder(this)
+                    .maxSizePercent(0.15)
+                    .build()
+            }
+            .diskCache {
+                coil.disk.DiskCache.Builder()
+                    .directory(this.cacheDir.resolve("thumbnail_cache"))
+                    .maxSizeBytes(100L * 1024 * 1024) // 100 MB max
+                    .build()
+            }
+            .crossfade(true)
+            .build()
+    )
+    
     val requiredPermissions = mutableListOf<String>()
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
         requiredPermissions.add(android.Manifest.permission.READ_MEDIA_VIDEO)
