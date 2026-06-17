@@ -772,7 +772,17 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
+                if (folder.path.isNotEmpty()) {
+                    Text(
+                        text = folder.path,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
                 Row {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -784,6 +794,22 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    if (folder.totalSize > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            val sizeMb = folder.totalSize / (1024 * 1024)
+                            val sizeStr = if (sizeMb > 1024) String.format(java.util.Locale.US, "%.2f GB", sizeMb / 1024f) else "$sizeMb MB"
+                            Text(
+                                text = sizeStr,
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

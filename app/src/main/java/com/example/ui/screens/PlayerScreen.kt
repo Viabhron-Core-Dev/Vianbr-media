@@ -317,10 +317,12 @@ fun PlayerScreen(
                             val width = videoSize.width
                             val height = videoSize.height
                             if (width > 0 && height > 0) {
+                                val aspect = width.toFloat() / height.toFloat()
+                                val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
                                 context.findActivity()?.setPictureInPictureParams(
                                     PictureInPictureParams.Builder()
                                         .setAutoEnterEnabled(true)
-                                        .setAspectRatio(android.util.Rational(width, height))
+                                        .setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
                                         .build()
                                 )
                             }
@@ -977,7 +979,9 @@ fun PlayerScreen(
                                         val width = mediaController?.videoSize?.width
                                         val height = mediaController?.videoSize?.height
                                         if (width != null && height != null && width > 0 && height > 0) {
-                                            builder.setAspectRatio(android.util.Rational(width, height))
+                                            val aspect = width.toFloat() / height.toFloat()
+                                        val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
+                                        builder.setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
                                         }
                                         context.findActivity()?.enterPictureInPictureMode(builder.build())
                                     } catch (e: Exception) {

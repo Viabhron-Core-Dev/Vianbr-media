@@ -84,7 +84,7 @@
 ---
 ## Development Phases
 
-### Phase 1: Welcome Page, Permissions & The Log Keeper
+### Phase 1: Welcome Page, Permissions & The Log Keeper (Completed)
 *Target: Build the core startup flow, diagnostic nervous system, and secure basic storage permissions.*
 * **Welcome Screen**: A first-launch initialization page where the Logger is started and users are onboarded.
 * **Permission Requests**: Explicitly ask for required local media access (Audio and Video permissions), plus any necessary storage/SAF permissions directly from the Welcome Page.
@@ -92,26 +92,26 @@
   * Initialize the Singleton Logger and map `SharedPreferences` for persistence and crash-dumps.
   * Build the Global Diagnostic FAB (positioned in the **bottom right corner with a bug symbol**), acting as the master On/Off switch, floating over all app activities.
 
-### Phase 2: Local Media Reading (Audio & Video) & IO Foundation
+### Phase 2: Local Media Reading (Audio & Video) & IO Foundation (Completed)
 *Target: Establish immediate local file fetching capability and output configurations.*
 * **Media Reading**: Implement the MediaStore logic to read local **Audio** and **Video** files from the device.
 * **SAF Configuration**: Basic Settings UI to handle `ACTION_OPEN_DOCUMENT_TREE` (SAF).
 * Persistent storage of the "Output Folder URI".
 * Configuration for inclusion folders and specific media extensions prioritizing Audio/Video (mp4, mkv, mp3, etc.).
 
-### Phase 3: The Headless Library Engine
+### Phase 3: The Headless Library Engine (Completed)
 *Target: Safe, background file traversal without UI blocking.*
 * A filesystem scanner that processes the flat folder structure.
 * Detection logic for companion subtitle files (same filename check).
 * The logic to read timestamps, file sizes, and generate cache-friendly Video/Image thumbnails.
 
-### Phase 4: Library UI & Context Menus
+### Phase 4: Library UI & Context Menus (Completed)
 *Target: The MiXplorer/MX Player hybrid interface.*
 * Flat-folder list layouts (e.g., LazyColumn/RecyclerView).
 * Manual pull-to-refresh gesture mapping.
 * Long-press multi-selection logic and the context menu (Play, Delete, Rename, Options, Add to Playlist).
 
-### Phase 5: Media3 (ExoPlayer) Core Lifecycle
+### Phase 5: Media3 (ExoPlayer) Core Lifecycle (Completed)
 *Target: Stable video and background audio rendering.*
 * Invoking the Player natively.
 * Foreground Service mapping for Background Playback (audio-only).
@@ -182,9 +182,15 @@
   - Forced default Light Theme for clean MX Player aesthetic.
   - Added programmatic tagging framework (`PlaybackTag`: `NEW`, `UNSEEN`, `SEEN`) where media < 15 days old receives a `NEW` badge overlaid on thumbnails, dynamically formatting list item typography to represent its state.
   - Hooked a "Mark as..." context action locally in the `BottomAppBar` to allow batch changing of tags in multi-select mode.
+* **Phase 4 Update**:
+  - Implemented single-load optimization in MediaStore indexing to prevent unnecessary re-scanning during normal navigation.
+  - Enhanced `MediaFolder` data model to track and cache `totalSize` and specific location `path`.
+  - Updated Library UI to systematically reflect aggregate folder sizes and exact path locations under folder titles.
+  - Stabilized and heavily optimized Video Thumbnail generation in Coil by forcing deep disk caching (100MB), Memory caching, and aggressive first-frame extraction (`videoFrameMillis(0)`) utilizing asynchronous crossfading to eliminate lazy-loading list stuttering.
 * **Phase 5 Complete**:
   - Wired `androidx.media3` dependencies into Gradle properties and catalog.
   - Designed `PlaybackService` leveraging `MediaSessionService` to anchor native ExoPlayer background capabilities.
+  - Implemented background hardware optimization for ExoPlayer, utilizing an inactivity timeout handler to stop the player and release UI surfaces if it remains paused for 5 minutes.
   - Created the ExoPlayer integration `PlayerScreen` view, routing heavily off `MediaController` callbacks to parse the explicit SAF file URI (using Base64 safe-encoding for Navigation routes).
   - Integrated `setPictureInPictureParams()` native hooks for Android 12+ (S) ensuring the application automatically enters PiP layout transitions on home swipe or task backgrounding.
   - Hooked playback state tracking (`currentPosition`, `duration`) into `SettingsManager` to remember positions and mark videos as 'Seen' upon 99% completion.

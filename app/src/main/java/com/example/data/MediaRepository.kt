@@ -27,6 +27,7 @@ data class MediaFolder(
     val name: String,
     val path: String,
     val dateModified: Long,
+    val totalSize: Long,
     val mediaItems: List<MediaItem>
 ) {
     val videoCount: Int get() = mediaItems.size
@@ -49,6 +50,7 @@ class MediaRepository(private val context: Context) {
         val folderNames = mutableMapOf<String, String>()
         val folderPaths = mutableMapOf<String, String>()
         val folderDates = mutableMapOf<String, Long>()
+        val folderSizes = mutableMapOf<String, Long>()
 
         val settings = SettingsManager.getInstance(context)
         val excludedFolders = settings.excludedFolders.value
@@ -61,7 +63,9 @@ class MediaRepository(private val context: Context) {
                 android.provider.MediaStore.Video.Media.DURATION,
                 android.provider.MediaStore.Video.Media.DATE_MODIFIED,
                 android.provider.MediaStore.Video.Media.BUCKET_ID,
-                android.provider.MediaStore.Video.Media.BUCKET_DISPLAY_NAME
+                android.provider.MediaStore.Video.Media.BUCKET_DISPLAY_NAME,
+                android.provider.MediaStore.Video.Media.DATA,
+                android.provider.MediaStore.Video.Media.SIZE
             )
 
             context.contentResolver.query(
@@ -74,6 +78,8 @@ class MediaRepository(private val context: Context) {
                 val dateCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DATE_MODIFIED)
                 val bucketIdCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.BUCKET_ID)
                 val bucketNameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+                val dataCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DATA)
+                val sizeCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.SIZE)
                 
                 val currentTime = System.currentTimeMillis()
                 val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
@@ -90,6 +96,8 @@ class MediaRepository(private val context: Context) {
                     val dur = cursor.getLong(durCol)
                     val dateMs = cursor.getLong(dateCol) * 1000
                     val bucketName = cursor.getString(bucketNameCol) ?: "Unknown Folder"
+                    val dataPath = cursor.getString(dataCol) ?: ""
+                    val itemSize = cursor.getLong(sizeCol)
 
                     val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
                     val uriStr = uri.toString()
@@ -118,11 +126,14 @@ class MediaRepository(private val context: Context) {
 
                     foldersMap.getOrPut(bucketId) { mutableListOf() }.add(item)
                     folderNames[bucketId] = bucketName
-                    folderPaths[bucketId] = "" // No data available, empty folder path
+                    if (folderPaths[bucketId].isNullOrEmpty() && dataPath.isNotEmpty()) {
+                        folderPaths[bucketId] = java.io.File(dataPath).parent ?: ""
+                    }
                     val existingDate = folderDates[bucketId] ?: 0L
                     if (dateMs > existingDate) {
                         folderDates[bucketId] = dateMs
                     }
+                    folderSizes[bucketId] = (folderSizes[bucketId] ?: 0L) + itemSize
                 }
             }
         } catch (e: Exception) {
@@ -135,6 +146,7 @@ class MediaRepository(private val context: Context) {
                 name = folderNames[bucketId] ?: "Unknown",
                 path = folderPaths[bucketId] ?: "",
                 dateModified = folderDates[bucketId] ?: 0L,
+                totalSize = folderSizes[bucketId] ?: 0L,
                 mediaItems = items.sortedByDescending { it.dateAdded }
             )
         }.sortedBy { it.name.lowercase() }
@@ -227,7 +239,7 @@ class MediaRepository(private val context: Context) {
 
                 item.copy(hasSubtitle = hasSub, duration = duration, tag = tag)
             }
-            folders.add(MediaFolder(documentId, folderName, folderPath, latestDate, updatedItems.sortedByDescending { it.dateAdded }))
+            folders.add(MediaFolder(documentId, folderName, folderPath, latestDate, updatedItems.sumOf { 0L }, updatedItems.sortedByDescending { it.dateAdded }))
         }
 
         // Non-recursive: do not scan sub-directories
