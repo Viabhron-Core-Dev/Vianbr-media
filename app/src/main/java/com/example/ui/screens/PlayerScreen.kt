@@ -485,7 +485,7 @@ fun PlayerScreen(
                                     val currentDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
                                     val seekOffsetMs = (dragDistanceX / size.width) * 120_000
                                     val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, currentDuration)
-                                    gestureText = "Seek: ${formatTime(targetPos)} / ${formatTime(currentDuration)}"
+                                    mediaController?.seekTo(targetPos)
                                     change.consume()
                                 }
                                 GestureType.VOLUME -> {
@@ -980,10 +980,18 @@ fun PlayerScreen(
                                         val height = mediaController?.videoSize?.height
                                         if (width != null && height != null && width > 0 && height > 0) {
                                             val aspect = width.toFloat() / height.toFloat()
-                                        val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
-                                        builder.setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
+                                            val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
+                                            builder.setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
                                         }
-                                        context.findActivity()?.enterPictureInPictureMode(builder.build())
+                                        val success = context.findActivity()?.enterPictureInPictureMode(builder.build()) ?: true
+                                        if (!success) {
+                                            context.startActivity(
+                                                android.content.Intent(
+                                                    "android.settings.PICTURE_IN_PICTURE_SETTINGS",
+                                                    android.net.Uri.parse("package:${context.packageName}")
+                                                )
+                                            )
+                                        }
                                     } catch (e: Exception) {
                                         try {
                                             context.startActivity(
