@@ -2,6 +2,10 @@ package com.example.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -34,15 +38,6 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
                     val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     "photo_editor/$encodedUri"
                 } else {
-                    // Start compression queue service and default back to main
-                    val intent = android.content.Intent(context, com.example.service.CompressionService::class.java).apply {
-                        putStringArrayListExtra("uris", java.util.ArrayList(initialUris))
-                    }
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        context.startForegroundService(intent)
-                    } else {
-                        context.startService(intent)
-                    }
                     "main"
                 }
             } else {
@@ -50,6 +45,19 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
                 "player/$encodedUri"
             }
         } else if (settingsManager.hasSeenWelcome) "main" else "welcome"
+    }
+
+    var batchCompressionUris by remember { mutableStateOf<List<String>?>(null) }
+    LaunchedEffect(initialUris) {
+        if (initialUris.size > 1) {
+            val isImage = initialUris.first().let { uri ->
+                val mimeType = context.contentResolver.getType(android.net.Uri.parse(uri))
+                mimeType?.startsWith("image/") == true
+            }
+            if (isImage) {
+                batchCompressionUris = initialUris
+            }
+        }
     }
     
     NavHost(navController = navController, startDestination = startDest) {
@@ -119,8 +127,11 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
             arguments = listOf(navArgument("uri") { type = NavType.StringType })
         ) { backStackEntry ->
             val uriString = backStackEntry.arguments?.getString("uri") ?: ""
+            val decodedUri = try {
+                String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
+            } catch (e: Exception) { uriString }
             com.example.ui.screens.PhotoEditorScreen(
-                uriString = uriString,
+                uriString = decodedUri,
                 onNavigateBack = { 
                     if (!navController.popBackStack()) {
                         (context as? android.app.Activity)?.finish()
@@ -128,5 +139,25 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
                 }
             )
         }
+    }
+
+    batchCompressionUris?.let { uris ->
+        com.example.ui.components.CompressionOptionsDialog(
+            uris = uris,
+            onDismiss = { batchCompressionUris = null },
+            onStartCompression = { urisToCompress, w, h ->
+                val intent = android.content.Intent(context, com.example.service.CompressionService::class.java).apply {
+                    putStringArrayListExtra("uris", java.util.ArrayList(urisToCompress))
+                    putExtra("maxWidth", w)
+                    putExtra("maxHeight", h)
+                }
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                batchCompressionUris = null
+            }
+        )
     }
 }

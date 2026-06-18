@@ -48,6 +48,8 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
     
     val lines = remember { mutableStateListOf<Line>() }
     var mode by remember { mutableStateOf("VIEW") } // "VIEW", "DRAW", "CROP", "TEXT"
+    
+    var showCompressionDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uriString) {
         withContext(Dispatchers.IO) {
@@ -77,16 +79,7 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                 },
                 actions = {
                     IconButton(onClick = {
-                        // Queue to compression service
-                        val intent = android.content.Intent(context, com.example.service.CompressionService::class.java).apply {
-                            putStringArrayListExtra("uris", java.util.ArrayList(listOf(uriString)))
-                        }
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                            context.startForegroundService(intent)
-                        } else {
-                            context.startService(intent)
-                        }
-                        onNavigateBack()
+                        showCompressionDialog = true
                     }) {
                         Icon(Icons.Filled.Save, contentDescription = "Save/Distribute")
                     }
@@ -188,5 +181,26 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
         }
+    }
+    
+    if (showCompressionDialog) {
+        com.example.ui.components.CompressionOptionsDialog(
+            uris = listOf(uriString),
+            onDismiss = { showCompressionDialog = false },
+            onStartCompression = { uris, w, h ->
+                val intent = android.content.Intent(context, com.example.service.CompressionService::class.java).apply {
+                    putStringArrayListExtra("uris", java.util.ArrayList(uris))
+                    putExtra("maxWidth", w)
+                    putExtra("maxHeight", h)
+                }
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                showCompressionDialog = false
+                onNavigateBack()
+            }
+        )
     }
 }

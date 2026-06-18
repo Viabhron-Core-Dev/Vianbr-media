@@ -77,7 +77,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
             ) {
                 Text(
-                    outputFolderUri ?: "Default (Pictures/Video)",
+                    outputFolderUri ?: "Default (Downloads/Compressed)",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)

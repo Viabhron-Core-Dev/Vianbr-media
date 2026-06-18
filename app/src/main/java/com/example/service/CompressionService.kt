@@ -33,6 +33,8 @@ class CompressionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val uris = intent?.getStringArrayListExtra("uris") ?: return START_NOT_STICKY
+        val maxWidth = intent.getIntExtra("maxWidth", -1)
+        val maxHeight = intent.getIntExtra("maxHeight", -1)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Compressing Images")
@@ -43,7 +45,7 @@ class CompressionService : Service() {
         startForeground(1, notification)
 
         serviceScope.launch {
-            processImages(uris)
+            processImages(uris, maxWidth, maxHeight)
             stopForeground(true)
             stopSelfResult(startId)
         }
@@ -51,7 +53,7 @@ class CompressionService : Service() {
         return START_NOT_STICKY
     }
 
-    private suspend fun processImages(uris: List<String>) {
+    private suspend fun processImages(uris: List<String>, maxWidth: Int, maxHeight: Int) {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val settingsManager = SettingsManager.getInstance(applicationContext)
         val outputUriStr = settingsManager.outputFolderUri.value
@@ -65,10 +67,22 @@ class CompressionService : Service() {
                 inputStream?.close()
 
                 if (bitmap != null) {
+                    var outBitmap = bitmap
+                    if (maxWidth > 0 && maxHeight > 0) {
+                        val ratio = kotlin.math.min(maxWidth.toFloat() / bitmap.width, maxHeight.toFloat() / bitmap.height)
+                        if (ratio < 1f) {
+                            val newW = (bitmap.width * ratio).toInt()
+                            val newH = (bitmap.height * ratio).toInt()
+                            outBitmap = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
+                        }
+                    }
                     val outStream: OutputStream? = getOutputStream(outputUriStr, "compressed_${System.currentTimeMillis()}.jpg")
                     if (outStream != null) {
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outStream)
+                        outBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outStream)
                         outStream.close()
+                    }
+                    if (outBitmap != bitmap) {
+                        outBitmap.recycle()
                     }
                 }
             } catch (e: Exception) {
@@ -110,7 +124,7 @@ class CompressionService : Service() {
             put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
             put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/Compressed")
+                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/Compressed")
             }
         }
         val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
