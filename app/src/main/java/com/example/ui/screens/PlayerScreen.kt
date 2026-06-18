@@ -482,10 +482,6 @@ fun PlayerScreen(
                             
                             when (currentGesture) {
                                 GestureType.SEEK -> {
-                                    val currentDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
-                                    val seekOffsetMs = (dragDistanceX / size.width) * 120_000
-                                    val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, currentDuration)
-                                    mediaController?.seekTo(targetPos)
                                     change.consume()
                                 }
                                 GestureType.VOLUME -> {
@@ -972,10 +968,23 @@ fun PlayerScreen(
                             IconButton(onClick = {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                     try {
-                                        val builder = PictureInPictureParams.Builder()
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                            builder.setAutoEnterEnabled(true)
+                                        val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+                                        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                            appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE, android.os.Process.myUid(), context.packageName)
+                                        } else {
+                                            appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE, android.os.Process.myUid(), context.packageName)
                                         }
+                                        if (mode != android.app.AppOpsManager.MODE_ALLOWED) {
+                                            context.startActivity(
+                                                android.content.Intent(
+                                                    "android.settings.PICTURE_IN_PICTURE_SETTINGS",
+                                                    android.net.Uri.parse("package:${context.packageName}")
+                                                )
+                                            )
+                                            return@IconButton
+                                        }
+                                        
+                                        val builder = PictureInPictureParams.Builder()
                                         val width = mediaController?.videoSize?.width
                                         val height = mediaController?.videoSize?.height
                                         if (width != null && height != null && width > 0 && height > 0) {
@@ -983,26 +992,9 @@ fun PlayerScreen(
                                             val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
                                             builder.setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
                                         }
-                                        val success = context.findActivity()?.enterPictureInPictureMode(builder.build()) ?: true
-                                        if (!success) {
-                                            context.startActivity(
-                                                android.content.Intent(
-                                                    "android.settings.PICTURE_IN_PICTURE_SETTINGS",
-                                                    android.net.Uri.parse("package:${context.packageName}")
-                                                )
-                                            )
-                                        }
+                                        context.findActivity()?.enterPictureInPictureMode(builder.build())
                                     } catch (e: Exception) {
-                                        try {
-                                            context.startActivity(
-                                                android.content.Intent(
-                                                    "android.settings.PICTURE_IN_PICTURE_SETTINGS",
-                                                    android.net.Uri.parse("package:${context.packageName}")
-                                                )
-                                            )
-                                        } catch (e2: Exception) {
-                                            // Ignore if settings intent fails
-                                        }
+                                        // Ignore
                                     }
                                 }
                             }) {

@@ -38,10 +38,12 @@ fun PlaybackProgressRow(
     var currentPosition by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var showRemainingTime by remember { mutableStateOf(false) }
+    var isScrubbing by remember { mutableStateOf(false) }
+    var scrubPosition by remember { mutableStateOf(0f) }
 
     LaunchedEffect(mediaController) {
         while (true) {
-            if (mediaController != null) {
+            if (mediaController != null && !isScrubbing) {
                 currentPosition = mediaController.currentPosition.coerceAtLeast(0L)
                 duration = mediaController.duration.coerceAtLeast(1L)
             }
@@ -54,15 +56,19 @@ fun PlaybackProgressRow(
         modifier = modifier
     ) {
         Text(
-            text = formatTime(currentPosition),
+            text = formatTime(if (isScrubbing) (scrubPosition * duration).toLong() else currentPosition),
             color = Color.White,
             fontSize = 12.sp
         )
         Slider(
-            value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
+            value = if (isScrubbing) scrubPosition else (if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f),
             onValueChange = { scale ->
-                mediaController?.seekTo((scale * duration).toLong())
-                currentPosition = (scale * duration).toLong()
+                isScrubbing = true
+                scrubPosition = scale
+            },
+            onValueChangeFinished = {
+                mediaController?.seekTo((scrubPosition * duration).toLong())
+                isScrubbing = false
             },
             thumb = {
                 Box(
