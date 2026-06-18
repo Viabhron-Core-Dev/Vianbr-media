@@ -348,6 +348,7 @@ fun MainScreen(
                                                 if (isMultiSelectMode) {
                                                     if (isSelected) selectedMediaItems.remove(media) else selectedMediaItems.add(media)
                                                 } else {
+                                                    viewModel.markAsStarted(media.id)
                                                     onNavigateToPlayer(media.uri.toString())
                                                 }
                                             },
@@ -423,12 +424,21 @@ fun MainScreen(
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                             Spacer(modifier = Modifier.height(4.dp))
-                                            val parentFolder = if (selectedFolder != null) selectedFolder else mediaFolders.find { it.mediaItems.contains(media) }
-                                            val pathStr = parentFolder?.let {
-                                                it.path.replace("primary:", "/storage/emulated/0/") + "/" + it.name
-                                            } ?: "Unknown path"
+                                            val subText = if (selectedFolder != null) {
+                                                val sizeMb = media.size / (1024f * 1024f)
+                                                if (sizeMb >= 1024f) {
+                                                    String.format("%.2f GB", sizeMb / 1024f)
+                                                } else {
+                                                    String.format("%.1f MB", sizeMb)
+                                                }
+                                            } else {
+                                                val parentFolder = mediaFolders.find { it.mediaItems.contains(media) }
+                                                parentFolder?.let {
+                                                    it.path.replace("primary:", "/storage/emulated/0/") + "/" + it.name
+                                                } ?: "Unknown path"
+                                            }
                                             Text(
-                                                text = pathStr,
+                                                text = subText,
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 maxLines = 1,

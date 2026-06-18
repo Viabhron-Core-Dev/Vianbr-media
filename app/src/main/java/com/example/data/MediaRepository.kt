@@ -19,7 +19,8 @@ data class MediaItem(
     val dateAdded: Long,
     val mediaType: MediaType,
     val hasSubtitle: Boolean = false,
-    val tag: PlaybackTag = PlaybackTag.NEW
+    val tag: PlaybackTag = PlaybackTag.NEW,
+    val size: Long = 0L
 )
 
 data class MediaFolder(
@@ -121,7 +122,8 @@ class MediaRepository(private val context: Context) {
                         dateAdded = dateMs,
                         mediaType = MediaType.VIDEO,
                         hasSubtitle = false, // Subtitles not easily extracted this way without checking filesystem
-                        tag = tag
+                        tag = tag,
+                        size = itemSize
                     )
 
                     foldersMap.getOrPut(bucketId) { mutableListOf() }.add(item)
@@ -202,7 +204,7 @@ class MediaRepository(private val context: Context) {
                         if (extensions.contains(ext) || (ext.isEmpty() && mimeType.startsWith("video/"))) {
                             val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
                             val mediaType = if (mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v")) MediaType.VIDEO else MediaType.AUDIO
-                            mediaItems.add(MediaItem(id = docId.hashCode().toLong(), uri = uri, name = name, duration = 0L, dateAdded = date, mediaType = mediaType, hasSubtitle = false))
+                            mediaItems.add(MediaItem(id = docId.hashCode().toLong(), uri = uri, name = name, duration = 0L, dateAdded = date, mediaType = mediaType, hasSubtitle = false, size = size))
                         } else if (ext in listOf("srt", "vtt", "ass", "sub")) {
                             subtitleFiles.add(name.substringBeforeLast('.').lowercase())
                         }

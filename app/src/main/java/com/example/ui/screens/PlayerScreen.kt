@@ -924,65 +924,78 @@ fun PlayerScreen(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                         )
                         
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                        Box(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            IconButton(onClick = { isLocked = true }) {
-                                Icon(Icons.Filled.LockOpen, contentDescription = "Lock", tint = Color.White)
-                            }
-                            IconButton(onClick = { mediaController?.seekToPrevious() }) {
-                                Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous", tint = Color.White)
-                            }
-                            IconButton(
-                                onClick = {
-                                    mediaController?.let { controller ->
-                                        if (controller.isPlaying) controller.pause() else controller.play()
-                                    }
+                            // Left alignment
+                            Row(modifier = Modifier.align(Alignment.CenterStart)) {
+                                IconButton(onClick = { isLocked = true }) {
+                                    Icon(Icons.Filled.LockOpen, contentDescription = "Lock", tint = Color.White)
                                 }
+                            }
+                            
+                            // Center alignment
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                                modifier = Modifier.align(Alignment.Center)
                             ) {
-                                Icon(
-                                    if (mediaController?.isPlaying == true) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                    contentDescription = "Play/Pause",
-                                    tint = Color.White
-                                )
-                            }
-                            IconButton(onClick = { mediaController?.seekToNext() }) {
-                                Icon(Icons.Filled.SkipNext, contentDescription = "Next", tint = Color.White)
-                            }
-                            IconButton(onClick = {
-                                resizeMode = when (resizeMode) {
-                                    AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                    AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                    else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                IconButton(onClick = { mediaController?.seekToPrevious() }) {
+                                    Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous", tint = Color.White)
                                 }
-                            }) {
-                                val resizeIcon = when (resizeMode) {
-                                    AspectRatioFrameLayout.RESIZE_MODE_FIT -> Icons.Filled.FullscreenExit
-                                    AspectRatioFrameLayout.RESIZE_MODE_FILL -> Icons.Filled.Fullscreen
-                                    else -> Icons.Filled.Crop
-                                }
-                                Icon(resizeIcon, contentDescription = "Aspect Ratio", tint = Color.White)
-                            }
-                            IconButton(onClick = {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    try {
-                                        val builder = PictureInPictureParams.Builder()
-                                        val width = mediaController?.videoSize?.width
-                                        val height = mediaController?.videoSize?.height
-                                        if (width != null && height != null && width > 0 && height > 0) {
-                                            val aspect = width.toFloat() / height.toFloat()
-                                            val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
-                                            builder.setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
+                                IconButton(
+                                    onClick = {
+                                        mediaController?.let { controller ->
+                                            if (controller.isPlaying) controller.pause() else controller.play()
                                         }
-                                        context.findActivity()?.enterPictureInPictureMode(builder.build())
-                                    } catch (e: Exception) {
-                                        // Ignore
                                     }
+                                ) {
+                                    Icon(
+                                        if (mediaController?.isPlaying == true) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                        contentDescription = "Play/Pause",
+                                        tint = Color.White
+                                    )
                                 }
-                            }) {
-                                Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "PiP", tint = Color.White)
+                                IconButton(onClick = { mediaController?.seekToNext() }) {
+                                    Icon(Icons.Filled.SkipNext, contentDescription = "Next", tint = Color.White)
+                                }
+                            }
+                            
+                            // Right alignment
+                            Row(modifier = Modifier.align(Alignment.CenterEnd)) {
+                                IconButton(onClick = {
+                                    resizeMode = when (resizeMode) {
+                                        AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                        AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                    }
+                                }) {
+                                    val resizeIcon = when (resizeMode) {
+                                        AspectRatioFrameLayout.RESIZE_MODE_FIT -> Icons.Filled.FullscreenExit
+                                        AspectRatioFrameLayout.RESIZE_MODE_FILL -> Icons.Filled.Fullscreen
+                                        else -> Icons.Filled.Crop
+                                    }
+                                    Icon(resizeIcon, contentDescription = "Aspect Ratio", tint = Color.White)
+                                }
+                                IconButton(onClick = {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        try {
+                                            val builder = PictureInPictureParams.Builder()
+                                            val width = mediaController?.videoSize?.width
+                                            val height = mediaController?.videoSize?.height
+                                            if (width != null && height != null && width > 0 && height > 0) {
+                                                val aspect = width.toFloat() / height.toFloat()
+                                                val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
+                                                builder.setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
+                                            }
+                                            context.findActivity()?.enterPictureInPictureMode(builder.build())
+                                        } catch (e: Exception) {
+                                            // Ignore
+                                        }
+                                    }
+                                }) {
+                                    Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "PiP", tint = Color.White)
+                                }
                             }
                         }
                     }

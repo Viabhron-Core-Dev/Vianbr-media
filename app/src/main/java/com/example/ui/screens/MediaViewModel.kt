@@ -33,6 +33,29 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun markAsStarted(mediaId: Long) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val currentFolders = _mediaFolders.value.toMutableList()
+            var updated = false
+            for (i in currentFolders.indices) {
+                val folder = currentFolders[i]
+                val itemIndex = folder.mediaItems.indexOfFirst { it.id == mediaId }
+                if (itemIndex != -1) {
+                    val items = folder.mediaItems.toMutableList()
+                    if (items[itemIndex].tag == com.example.data.PlaybackTag.NEW || items[itemIndex].tag == com.example.data.PlaybackTag.UNSEEN) {
+                        items[itemIndex] = items[itemIndex].copy(tag = com.example.data.PlaybackTag.PLAYING)
+                        currentFolders[i] = folder.copy(mediaItems = items)
+                        updated = true
+                    }
+                    break
+                }
+            }
+            if (updated) {
+                _mediaFolders.value = currentFolders
+            }
+        }
+    }
+
     fun scanFolder(folderId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val updatedFolder = repository.getMediaFolder(folderId)
