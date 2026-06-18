@@ -196,7 +196,8 @@
   - Hooked playback state tracking (`currentPosition`, `duration`) into `SettingsManager` to remember positions and mark videos as 'Seen' upon 99% completion.
 
 * **Phase 6 (Current / Pending)**:
-  - Implement full Player UI (transparent black overlays for out-of-the-way controls).
-  - Implement gesture controls for brightness, volume, and playback seeking.
+  - Implement full Player UI (transparent black overlays for out-of-the-way controls). (Partially complete)
+  - Implement gesture controls for brightness, volume, and playback seeking. (Partially complete)
+  - **Picture-in-Picture (PiP)**: Keep as a placeholder (permission loop removed, PiP currently non-functional).
   - **Screen Orientation**: Add sensor-based landscape/portrait rotation switching in the player based on the video constraints and user rotation.
   - Future refinement of non-functional Context Menu actions from Phase 4 (Rename, Delete, Properties, Add to Playlist).

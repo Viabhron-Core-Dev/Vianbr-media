@@ -628,7 +628,7 @@ fun PlayerScreen(
                     // Top controls background
                     Box(modifier = Modifier
                         .fillMaxWidth()
-                        .height(80.dp)
+                        .height(56.dp)
                         .align(Alignment.TopCenter)
                         .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)))
                     )
@@ -643,7 +643,7 @@ fun PlayerScreen(
                         val displayName = remember(decodedUriString) { getDisplayNameFromUri(context, Uri.parse(decodedUriString)) }
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 0.dp)
                         ) {
                             IconButton(onClick = onNavigateBack) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
@@ -906,7 +906,7 @@ fun PlayerScreen(
                     // Bottom controls background
                     Box(modifier = Modifier
                         .fillMaxWidth()
-                        .height(120.dp)
+                        .height(96.dp)
                         .align(Alignment.BottomCenter)
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))))
                     )
@@ -917,17 +917,17 @@ fun PlayerScreen(
                             .fillMaxWidth()
                             .align(Alignment.BottomCenter)
                             .windowInsetsPadding(WindowInsets.systemBars)
-                            .padding(bottom = 8.dp)
+                            .padding(bottom = 4.dp)
                     ) {
                         PlaybackProgressRow(
                             mediaController = mediaController, 
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                         )
                         
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             IconButton(onClick = { isLocked = true }) {
                                 Icon(Icons.Filled.LockOpen, contentDescription = "Lock", tint = Color.White)
@@ -968,22 +968,6 @@ fun PlayerScreen(
                             IconButton(onClick = {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                     try {
-                                        val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
-                                        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                            appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE, android.os.Process.myUid(), context.packageName)
-                                        } else {
-                                            appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE, android.os.Process.myUid(), context.packageName)
-                                        }
-                                        if (mode != android.app.AppOpsManager.MODE_ALLOWED) {
-                                            context.startActivity(
-                                                android.content.Intent(
-                                                    "android.settings.PICTURE_IN_PICTURE_SETTINGS",
-                                                    android.net.Uri.parse("package:${context.packageName}")
-                                                )
-                                            )
-                                            return@IconButton
-                                        }
-                                        
                                         val builder = PictureInPictureParams.Builder()
                                         val width = mediaController?.videoSize?.width
                                         val height = mediaController?.videoSize?.height
