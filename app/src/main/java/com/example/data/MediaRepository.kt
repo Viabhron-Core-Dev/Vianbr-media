@@ -36,7 +36,7 @@ data class MediaFolder(
 }
 
 enum class MediaType {
-    AUDIO, VIDEO
+    AUDIO, VIDEO, IMAGE
 }
 
 class MediaRepository(private val context: Context) {
@@ -203,7 +203,11 @@ class MediaRepository(private val context: Context) {
                         val ext = name.substringAfterLast('.', "").lowercase()
                         if (extensions.contains(ext) || (ext.isEmpty() && mimeType.startsWith("video/"))) {
                             val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                            val mediaType = if (mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v")) MediaType.VIDEO else MediaType.AUDIO
+                            val mediaType = when {
+                                mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v") -> MediaType.VIDEO
+                                mimeType.startsWith("image/") || ext in listOf("jpg", "jpeg", "png", "webp", "heic") -> MediaType.IMAGE
+                                else -> MediaType.AUDIO
+                            }
                             mediaItems.add(MediaItem(id = docId.hashCode().toLong(), uri = uri, name = name, duration = 0L, dateAdded = date, mediaType = mediaType, hasSubtitle = false, size = size))
                         } else if (ext in listOf("srt", "vtt", "ass", "sub")) {
                             subtitleFiles.add(name.substringBeforeLast('.').lowercase())

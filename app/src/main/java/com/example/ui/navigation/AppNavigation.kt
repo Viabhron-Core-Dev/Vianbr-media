@@ -18,15 +18,37 @@ import androidx.navigation.navArgument
 import android.net.Uri
 
 @Composable
-fun AppNavigation(initialIntentUri: String? = null) {
+fun AppNavigation(initialUris: List<String> = emptyList()) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val navController = rememberNavController()
     
-    val startDest = remember(initialIntentUri) {
-        if (initialIntentUri != null) {
-            val encodedUri = android.util.Base64.encodeToString(initialIntentUri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-            "player/$encodedUri"
+    val startDest = remember(initialUris) {
+        if (initialUris.isNotEmpty()) {
+            val isImage = initialUris.first().let { uri ->
+                val mimeType = context.contentResolver.getType(android.net.Uri.parse(uri))
+                mimeType?.startsWith("image/") == true
+            }
+            if (isImage) {
+                if (initialUris.size == 1) {
+                    val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                    "photo_editor/$encodedUri"
+                } else {
+                    // Start compression queue service and default back to main
+                    val intent = android.content.Intent(context, com.example.service.CompressionService::class.java).apply {
+                        putStringArrayListExtra("uris", java.util.ArrayList(initialUris))
+                    }
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent)
+                    } else {
+                        context.startService(intent)
+                    }
+                    "main"
+                }
+            } else {
+                val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                "player/$encodedUri"
+            }
         } else if (settingsManager.hasSeenWelcome) "main" else "welcome"
     }
     
@@ -46,6 +68,10 @@ fun AppNavigation(initialIntentUri: String? = null) {
                 onNavigateToPlayer = { uri ->
                     val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("player/$encodedUri")
+                },
+                onNavigateToPhotoEditor = { uri ->
+                    val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                    navController.navigate("photo_editor/$encodedUri")
                 },
                 onNavigateToPlaylists = {
                     navController.navigate("playlists")
@@ -80,6 +106,20 @@ fun AppNavigation(initialIntentUri: String? = null) {
         ) { backStackEntry ->
             val uriString = backStackEntry.arguments?.getString("uri") ?: ""
             PlayerScreen(
+                uriString = uriString,
+                onNavigateBack = { 
+                    if (!navController.popBackStack()) {
+                        (context as? android.app.Activity)?.finish()
+                    }
+                }
+            )
+        }
+        composable(
+            route = "photo_editor/{uri}",
+            arguments = listOf(navArgument("uri") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val uriString = backStackEntry.arguments?.getString("uri") ?: ""
+            com.example.ui.screens.PhotoEditorScreen(
                 uriString = uriString,
                 onNavigateBack = { 
                     if (!navController.popBackStack()) {

@@ -37,8 +37,19 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
     val extensions by settingsManager.extensions.collectAsState()
     val showLoggerFab by settingsManager.showLoggerFab.collectAsState()
     val isLoggerEnabled by LogKeeper.isEnabled.collectAsState()
+    val outputFolderUri by settingsManager.outputFolderUri.collectAsState()
 
     var showExcludeDialog by remember { mutableStateOf(false) }
+
+    val dirPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            context.contentResolver.takePersistableUriPermission(it, flags)
+            settingsManager.setOutputFolderUri(it.toString())
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -60,6 +71,29 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         ) {
             Text("Storage Configuration", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
+            Text("Output Folder", style = MaterialTheme.typography.labelLarge)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Text(
+                    outputFolderUri ?: "Default (Pictures/Video)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(onClick = { dirPickerLauncher.launch(null) }) {
+                    Text("Select")
+                }
+            }
+            if (outputFolderUri != null) {
+                TextButton(onClick = { settingsManager.setOutputFolderUri(null) }) {
+                    Text("Reset to Default", color = MaterialTheme.colorScheme.error)
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
             Text("Excluded Folders (Hidden)", style = MaterialTheme.typography.labelLarge)
             
             if (excludedFolders.isEmpty()) {

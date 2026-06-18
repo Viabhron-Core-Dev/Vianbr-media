@@ -15,6 +15,9 @@ class SettingsManager private constructor(context: Context) {
     private val _extensions = MutableStateFlow<List<String>>(emptyList())
     val extensions: StateFlow<List<String>> = _extensions.asStateFlow()
 
+    private val _outputFolderUri = MutableStateFlow<String?>(null)
+    val outputFolderUri: StateFlow<String?> = _outputFolderUri.asStateFlow()
+
     private val _showLoggerFab = MutableStateFlow(true)
     val showLoggerFab: StateFlow<Boolean> = _showLoggerFab.asStateFlow()
 
@@ -24,13 +27,16 @@ class SettingsManager private constructor(context: Context) {
             _excludedFolders.value = excludedStrSet
         }
         
+        _outputFolderUri.value = prefs.getString("output_folder_uri", null)
+        
         _showLoggerFab.value = prefs.getBoolean("show_logger_fab", true)
 
         val defaultExts = setOf("mp4", "mkv", "mp3", "webm", "3gp", "avi", "mov", "flv", "wmv", "m4v", "aac", "wav", "flac")
         val savedExts = prefs.getStringSet("extensions", null)
         
+        val imageExts = setOf("jpg", "jpeg", "png", "webp", "heic")
         val exts = if (savedExts != null) {
-            (savedExts + defaultExts).toList()
+            (savedExts + defaultExts).filterNot { it in imageExts }.distinct()
         } else {
             defaultExts.toList()
         }
@@ -57,6 +63,15 @@ class SettingsManager private constructor(context: Context) {
     fun setExtensions(exts: List<String>) {
         _extensions.value = exts
         prefs.edit().putStringSet("extensions", exts.toSet()).apply()
+    }
+
+    fun setOutputFolderUri(uriStr: String?) {
+        _outputFolderUri.value = uriStr
+        if (uriStr == null) {
+            prefs.edit().remove("output_folder_uri").apply()
+        } else {
+            prefs.edit().putString("output_folder_uri", uriStr).apply()
+        }
     }
 
     fun setShowLoggerFab(show: Boolean) {

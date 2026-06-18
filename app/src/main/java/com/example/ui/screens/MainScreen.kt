@@ -70,6 +70,7 @@ enum class SortOrder { NAME, DATE }
 @Composable
 fun MainScreen(
     onNavigateToPlayer: (String) -> Unit = {},
+    onNavigateToPhotoEditor: (String) -> Unit = {},
     onNavigateToPlaylists: () -> Unit = {}
 ) {
     val viewModel: MediaViewModel = viewModel()
@@ -166,7 +167,12 @@ fun MainScreen(
                     } else if (isMultiSelectMode) {
                         IconButton(onClick = { 
                             if (selectedMediaItems.isNotEmpty()) {
-                                onNavigateToPlayer(selectedMediaItems.first().uri.toString())
+                                val firstMedia = selectedMediaItems.first()
+                                if (firstMedia.mediaType == com.example.data.MediaType.IMAGE) {
+                                    onNavigateToPhotoEditor(firstMedia.uri.toString())
+                                } else {
+                                    onNavigateToPlayer(firstMedia.uri.toString())
+                                }
                                 selectedMediaItems.clear()
                             }
                         }) {
@@ -245,7 +251,11 @@ fun MainScreen(
                         val sorted = itemsToConsider.sortedByDescending { settings.getLastPlayedTime(it.uri.toString()) }
                         val toPlay = sorted.firstOrNull()
                         if (toPlay != null) {
-                            onNavigateToPlayer(toPlay.uri.toString())
+                            if (toPlay.mediaType == com.example.data.MediaType.IMAGE) {
+                                onNavigateToPhotoEditor(toPlay.uri.toString())
+                            } else {
+                                onNavigateToPlayer(toPlay.uri.toString())
+                            }
                         } else {
                             Toast.makeText(context, "No videos to play", Toast.LENGTH_SHORT).show()
                         }
@@ -349,7 +359,11 @@ fun MainScreen(
                                                     if (isSelected) selectedMediaItems.remove(media) else selectedMediaItems.add(media)
                                                 } else {
                                                     viewModel.markAsStarted(media.id)
-                                                    onNavigateToPlayer(media.uri.toString())
+                                                    if (media.mediaType == com.example.data.MediaType.IMAGE) {
+                                                        onNavigateToPhotoEditor(media.uri.toString())
+                                                    } else {
+                                                        onNavigateToPlayer(media.uri.toString())
+                                                    }
                                                 }
                                             },
                                             onLongClick = {

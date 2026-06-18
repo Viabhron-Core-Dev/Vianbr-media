@@ -99,13 +99,26 @@ class MainActivity : ComponentActivity() {
         } else {
           Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize()) {
-              var initialIntentUri: String? = null
+              var initialUris: List<String> = emptyList()
               if (intent?.action == android.content.Intent.ACTION_VIEW) {
                 intent?.data?.let { uri ->
-                  initialIntentUri = uri.toString()
+                  initialUris = listOf(uri.toString())
+                }
+              } else if (intent?.action == android.content.Intent.ACTION_SEND) {
+                (intent?.getParcelableExtra<android.os.Parcelable>(android.content.Intent.EXTRA_STREAM) as? android.net.Uri)?.let { uri ->
+                  initialUris = listOf(uri.toString())
+                }
+              } else if (intent?.action == android.content.Intent.ACTION_SEND_MULTIPLE) {
+                val arrayList = intent?.getParcelableArrayListExtra<android.os.Parcelable>(android.content.Intent.EXTRA_STREAM)
+                if (arrayList != null) {
+                    val uris = mutableListOf<String>()
+                    for (parcel in arrayList) {
+                        (parcel as? android.net.Uri)?.let { uris.add(it.toString()) }
+                    }
+                    initialUris = uris
                 }
               }
-              AppNavigation(initialIntentUri = initialIntentUri)
+              AppNavigation(initialUris = initialUris)
               
               // Global Diagnostic FAB
               val logEnabled by LogKeeper.isEnabled.collectAsState()
