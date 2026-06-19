@@ -9,9 +9,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.TextFields
@@ -47,7 +53,10 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
     var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     
     val lines = remember { mutableStateListOf<Line>() }
-    var mode by remember { mutableStateOf("VIEW") } // "VIEW", "DRAW", "CROP", "TEXT"
+    var mode by remember { mutableStateOf("VIEW") } // "VIEW", "DRAW", "ERASE", "CROP", "TEXT"
+    var currentColor by remember { mutableStateOf(Color.Red) }
+    
+    val predefinedColors = listOf(Color.Red, Color.Green, Color.Blue, Color.Yellow, Color.White, Color.Black)
     
     var showCompressionDialog by remember { mutableStateOf(false) }
 
@@ -106,24 +115,59 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
             )
         },
         bottomBar = {
-            BottomAppBar {
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(onClick = { mode = if (mode == "DRAW") "VIEW" else "DRAW" }) {
-                    Icon(
-                        Icons.Filled.Brush, 
-                        contentDescription = "Draw",
-                        tint = if (mode == "DRAW") MaterialTheme.colorScheme.primary else LocalContentColor.current
-                    )
+            Column {
+                if (mode == "DRAW") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(8.dp)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        predefinedColors.forEach { color ->
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .size(36.dp)
+                                    .background(color, shape = CircleShape)
+                                    .border(
+                                        width = if (currentColor == color) 3.dp else 1.dp,
+                                        color = if (currentColor == color) MaterialTheme.colorScheme.primary else Color.Gray,
+                                        shape = CircleShape
+                                    )
+                                    .clickable { currentColor = color }
+                            )
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(onClick = { mode = if (mode == "CROP") "VIEW" else "CROP" }) {
-                    Icon(
-                        Icons.Filled.Crop, 
-                        contentDescription = "Crop",
-                        tint = if (mode == "CROP") MaterialTheme.colorScheme.primary else LocalContentColor.current
-                    )
+                BottomAppBar {
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = { mode = if (mode == "DRAW") "VIEW" else "DRAW" }) {
+                        Icon(
+                            Icons.Filled.Brush, 
+                            contentDescription = "Draw",
+                            tint = if (mode == "DRAW") MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(0.5f))
+                    IconButton(onClick = { mode = if (mode == "ERASE") "VIEW" else "ERASE" }) {
+                        Icon(
+                            Icons.Filled.Clear, 
+                            contentDescription = "Erase",
+                            tint = if (mode == "ERASE") MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(0.5f))
+                    IconButton(onClick = { mode = if (mode == "CROP") "VIEW" else "CROP" }) {
+                        Icon(
+                            Icons.Filled.Crop, 
+                            contentDescription = "Crop",
+                            tint = if (mode == "CROP") MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
                 }
-                Spacer(modifier = Modifier.weight(1f))
             }
         }
     ) { innerPadding ->
@@ -145,8 +189,23 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                                     onDragStart = { offset -> dragStart = offset },
                                     onDrag = { change, dragAmount -> 
                                         change.consume()
-                                        lines.add(Line(dragStart, dragStart + dragAmount, Color.Red, 10f))
+                                        lines.add(Line(dragStart, dragStart + dragAmount, currentColor, 10f))
                                         dragStart += dragAmount
+                                    }
+                                )
+                            }
+                            if (mode == "ERASE") {
+                                detectDragGestures(
+                                    onDragStart = { offset -> dragStart = offset },
+                                    onDrag = { change, _ ->
+                                        change.consume()
+                                        val eraseRadius = 40f
+                                        val toRemove = lines.filter { line ->
+                                            val dx = line.start.x - change.position.x
+                                            val dy = line.start.y - change.position.y
+                                            Math.sqrt((dx * dx + dy * dy).toDouble()) < eraseRadius
+                                        }
+                                        lines.removeAll(toRemove)
                                     }
                                 )
                             }

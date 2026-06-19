@@ -148,7 +148,12 @@ class CompressionService : Service() {
                 put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/Compressed")
             }
         }
-        val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        } else {
+            android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        }
+        val uri = contentResolver.insert(collection, contentValues)
         return uri?.let { contentResolver.openOutputStream(it) }
     }
 
