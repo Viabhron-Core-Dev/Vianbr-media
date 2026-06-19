@@ -20,6 +20,9 @@ import com.example.ui.screens.PlaylistDetailScreen
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import android.net.Uri
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun AppNavigation(initialUris: List<String> = emptyList()) {
@@ -144,7 +147,10 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
     batchCompressionUris?.let { uris ->
         com.example.ui.components.CompressionOptionsDialog(
             uris = uris,
-            onDismiss = { batchCompressionUris = null },
+            onDismiss = { 
+                batchCompressionUris = null
+                if (initialUris.isNotEmpty()) { (context as? android.app.Activity)?.finish() }
+            },
             onStartCompression = { urisToCompress, w, h ->
                 val intent = android.content.Intent(context, com.example.service.CompressionService::class.java).apply {
                     putStringArrayListExtra("uris", java.util.ArrayList(urisToCompress))
@@ -159,5 +165,39 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
                 batchCompressionUris = null
             }
         )
+    }
+
+    if (com.example.service.CompressionStatus.isRunning) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { },
+            title = { androidx.compose.material3.Text("Compressing Images") },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    val total = com.example.service.CompressionStatus.totalFiles
+                    val current = com.example.service.CompressionStatus.currentFile
+                    val progressRatio = if (total > 0) current.toFloat() / total else 0f
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { progressRatio },
+                        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                    )
+                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
+                    androidx.compose.material3.Text("$current / $total files processed", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                }
+            },
+            confirmButton = {}
+        )
+    }
+    
+    var wasCompressing by remember { mutableStateOf(false) }
+    LaunchedEffect(com.example.service.CompressionStatus.isRunning) {
+        if (com.example.service.CompressionStatus.isRunning) {
+            wasCompressing = true
+        } else if (wasCompressing) {
+            wasCompressing = false
+            android.widget.Toast.makeText(context, "Compression complete!", android.widget.Toast.LENGTH_SHORT).show()
+            if (initialUris.isNotEmpty()) {
+                (context as? android.app.Activity)?.finish()
+            }
+        }
     }
 }

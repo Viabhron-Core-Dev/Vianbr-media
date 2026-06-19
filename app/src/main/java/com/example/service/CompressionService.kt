@@ -19,6 +19,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.OutputStream
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+
+object CompressionStatus {
+    var isRunning by mutableStateOf(false)
+    var totalFiles by mutableStateOf(0)
+    var currentFile by mutableStateOf(0)
+}
 
 class CompressionService : Service() {
 
@@ -44,8 +53,15 @@ class CompressionService : Service() {
 
         startForeground(1, notification)
 
+        CompressionStatus.isRunning = true
+        CompressionStatus.totalFiles = uris.size
+        CompressionStatus.currentFile = 0
+
         serviceScope.launch {
+            LogKeeper.log("Starting batch compression for ${uris.size} images...", "Compressor")
             processImages(uris, maxWidth, maxHeight)
+            LogKeeper.log("Completed batch compression for ${uris.size} images.", "Compressor")
+            CompressionStatus.isRunning = false
             stopForeground(true)
             stopSelfResult(startId)
         }
@@ -96,6 +112,11 @@ class CompressionService : Service() {
                 .setProgress(uris.size, count, false)
                 .build()
             notificationManager.notify(1, notification)
+            CompressionStatus.currentFile = count
+            
+            if (count % 5 == 0 || count == uris.size) {
+                LogKeeper.log("Progress: $count / ${uris.size} processed.", "Compressor")
+            }
         }
     }
 

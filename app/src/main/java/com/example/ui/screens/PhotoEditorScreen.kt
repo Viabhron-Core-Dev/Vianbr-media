@@ -51,6 +51,21 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
     
     var showCompressionDialog by remember { mutableStateOf(false) }
 
+    // Computed layout metrics for the image on Canvas
+    var imgLeft by remember { mutableStateOf(0f) }
+    var imgTop by remember { mutableStateOf(0f) }
+    var imgWidth by remember { mutableStateOf(0f) }
+    var imgHeight by remember { mutableStateOf(0f) }
+
+    // Crop state in normalized coordinates (0f to 1f) relative to the image
+    var cropLeft by remember { mutableStateOf(0.1f) }
+    var cropTop by remember { mutableStateOf(0.1f) }
+    var cropRight by remember { mutableStateOf(0.9f) }
+    var cropBottom by remember { mutableStateOf(0.9f) }
+    var resizeCorner by remember { mutableStateOf(0) } // 0: None, 1: Move, 2: TL, 3: TR, 4: BL, 5: BR
+    
+    val touchSlop = 60f
+
     LaunchedEffect(uriString) {
         withContext(Dispatchers.IO) {
             try {
@@ -60,6 +75,10 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                 if (bitmap != null) {
                     withContext(Dispatchers.Main) {
                         imageBitmap = bitmap.asImageBitmap()
+                        cropLeft = 0f
+                        cropTop = 0f
+                        cropRight = 1f
+                        cropBottom = 1f
                     }
                 }
             } catch (e: Exception) {
@@ -131,6 +150,68 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                                     }
                                 )
                             }
+                            if (mode == "CROP") {
+                                detectDragGestures(
+                                    onDragStart = { offset ->
+                                        if (imgWidth == 0f || imgHeight == 0f) return@detectDragGestures
+                                        val cl = imgLeft + cropLeft * imgWidth
+                                        val ct = imgTop + cropTop * imgHeight
+                                        val cr = imgLeft + cropRight * imgWidth
+                                        val cb = imgTop + cropBottom * imgHeight
+                                        
+                                        // check corners in order: TL, TR, BL, BR, MOVE
+                                        resizeCorner = when {
+                                            (offset.x - cl).let { it * it } + (offset.y - ct).let { it * it } < touchSlop * touchSlop -> 2
+                                            (offset.x - cr).let { it * it } + (offset.y - ct).let { it * it } < touchSlop * touchSlop -> 3
+                                            (offset.x - cl).let { it * it } + (offset.y - cb).let { it * it } < touchSlop * touchSlop -> 4
+                                            (offset.x - cr).let { it * it } + (offset.y - cb).let { it * it } < touchSlop * touchSlop -> 5
+                                            offset.x in cl..cr && offset.y in ct..cb -> 1
+                                            else -> 0
+                                        }
+                                        dragStart = offset
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        if (resizeCorner == 0 || imgWidth == 0f || imgHeight == 0f) return@detectDragGestures
+                                        change.consume()
+                                        val dx = dragAmount.x / imgWidth
+                                        val dy = dragAmount.y / imgHeight
+                                        when (resizeCorner) {
+                                            1 -> { // Move
+                                                val w = cropRight - cropLeft
+                                                val h = cropBottom - cropTop
+                                                var nL = cropLeft + dx
+                                                var nT = cropTop + dy
+                                                if (nL < 0f) nL = 0f
+                                                if (nT < 0f) nT = 0f
+                                                if (nL + w > 1f) nL = 1f - w
+                                                if (nT + h > 1f) nT = 1f - h
+                                                cropLeft = nL
+                                                cropRight = nL + w
+                                                cropTop = nT
+                                                cropBottom = nT + h
+                                            }
+                                            2 -> { // TL
+                                                cropLeft = (cropLeft + dx).coerceIn(0f, cropRight - 0.05f)
+                                                cropTop = (cropTop + dy).coerceIn(0f, cropBottom - 0.05f)
+                                            }
+                                            3 -> { // TR
+                                                cropRight = (cropRight + dx).coerceIn(cropLeft + 0.05f, 1f)
+                                                cropTop = (cropTop + dy).coerceIn(0f, cropBottom - 0.05f)
+                                            }
+                                            4 -> { // BL
+                                                cropLeft = (cropLeft + dx).coerceIn(0f, cropRight - 0.05f)
+                                                cropBottom = (cropBottom + dy).coerceIn(cropTop + 0.05f, 1f)
+                                            }
+                                            5 -> { // BR
+                                                cropRight = (cropRight + dx).coerceIn(cropLeft + 0.05f, 1f)
+                                                cropBottom = (cropBottom + dy).coerceIn(cropTop + 0.05f, 1f)
+                                            }
+                                        }
+                                    },
+                                    onDragEnd = { resizeCorner = 0 },
+                                    onDragCancel = { resizeCorner = 0 }
+                                )
+                            }
                         }
                 ) {
                     val canvasWidth = size.width
@@ -151,6 +232,12 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                     val left = (canvasWidth - drawWidth) / 2f
                     val top = (canvasHeight - drawHeight) / 2f
                     
+                    // Update computed metrics
+                    imgLeft = left
+                    imgTop = top
+                    imgWidth = drawWidth
+                    imgHeight = drawHeight
+                    
                     drawImage(
                         image = imageBitmap!!,
                         dstSize = androidx.compose.ui.unit.IntSize(drawWidth.toInt(), drawHeight.toInt()),
@@ -168,13 +255,38 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                     }
                     
                     if (mode == "CROP") {
-                        // Draw a temporary visual crop overlay hint
+                        val cL = left + cropLeft * drawWidth
+                        val cT = top + cropTop * drawHeight
+                        val cR = left + cropRight * drawWidth
+                        val cB = top + cropBottom * drawHeight
+                        
+                        // Overlay shade
+                        drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(left, top), size = Size(drawWidth, cT - top)) // Top
+                        drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(left, cB), size = Size(drawWidth, top + drawHeight - cB)) // Bottom
+                        drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(left, cT), size = Size(cL - left, cB - cT)) // Left
+                        drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(cR, cT), size = Size(left + drawWidth - cR, cB - cT)) // Right
+                        
+                        // Crop box
                         drawRect(
-                            color = Color.White.copy(alpha = 0.5f),
-                            topLeft = Offset(left + drawWidth * 0.1f, top + drawHeight * 0.1f),
-                            size = Size(drawWidth * 0.8f, drawHeight * 0.8f),
+                            color = Color.White,
+                            topLeft = Offset(cL, cT),
+                            size = Size(cR - cL, cB - cT),
                             style = Stroke(width = 5f)
                         )
+                        // Corners
+                        val cornerLen = 40f
+                        // TL
+                        drawLine(Color.Green, Offset(cL, cT), Offset(cL + cornerLen, cT), 12f)
+                        drawLine(Color.Green, Offset(cL, cT), Offset(cL, cT + cornerLen), 12f)
+                        // TR
+                        drawLine(Color.Green, Offset(cR, cT), Offset(cR - cornerLen, cT), 12f)
+                        drawLine(Color.Green, Offset(cR, cT), Offset(cR, cT + cornerLen), 12f)
+                        // BL
+                        drawLine(Color.Green, Offset(cL, cB), Offset(cL + cornerLen, cB), 12f)
+                        drawLine(Color.Green, Offset(cL, cB), Offset(cL, cB - cornerLen), 12f)
+                        // BR
+                        drawLine(Color.Green, Offset(cR, cB), Offset(cR - cornerLen, cB), 12f)
+                        drawLine(Color.Green, Offset(cR, cB), Offset(cR, cB - cornerLen), 12f)
                     }
                 }
             } else {
@@ -188,19 +300,92 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
             uris = listOf(uriString),
             onDismiss = { showCompressionDialog = false },
             onStartCompression = { uris, w, h ->
-                val intent = android.content.Intent(context, com.example.service.CompressionService::class.java).apply {
-                    putStringArrayListExtra("uris", java.util.ArrayList(uris))
-                    putExtra("maxWidth", w)
-                    putExtra("maxHeight", h)
+                coroutineScope.launch {
+                    val editedUri = withContext(Dispatchers.IO) {
+                        try {
+                            // Render to a new Bitmap
+                            val originalImageBitmap = imageBitmap ?: return@withContext uriString
+                            val origBmp = originalImageBitmap.asAndroidBitmap()
+                            
+                            val cw = cropRight - cropLeft
+                            val ch = cropBottom - cropTop
+                            val newW = (origBmp.width * cw).toInt()
+                            val newH = (origBmp.height * ch).toInt()
+                            
+                            if (newW <= 0 || newH <= 0) return@withContext uriString
+                            
+                            val resBmp = Bitmap.createBitmap(newW, newH, Bitmap.Config.ARGB_8888)
+                            val canvas = android.graphics.Canvas(resBmp)
+                            
+                            val srcRect = android.graphics.Rect(
+                                (origBmp.width * cropLeft).toInt(),
+                                (origBmp.height * cropTop).toInt(),
+                                (origBmp.width * cropRight).toInt(),
+                                (origBmp.height * cropBottom).toInt()
+                            )
+                            val dstRect = android.graphics.Rect(0, 0, newW, newH)
+                            canvas.drawBitmap(origBmp, srcRect, dstRect, null)
+                            
+                            val paint = android.graphics.Paint().apply {
+                                style = android.graphics.Paint.Style.STROKE
+                                strokeCap = android.graphics.Paint.Cap.ROUND
+                                isAntiAlias = true
+                            }
+                            
+                                // Map lines
+                                val scaleX = origBmp.width / imgWidth
+                                val scaleY = origBmp.height / imgHeight
+                                val cropOffsetX = imgWidth * cropLeft
+                                val cropOffsetY = imgHeight * cropTop
+                                
+                                lines.forEach { line ->
+                                    paint.color = android.graphics.Color.argb(
+                                        (line.color.alpha * 255).toInt(),
+                                        (line.color.red * 255).toInt(),
+                                        (line.color.green * 255).toInt(),
+                                        (line.color.blue * 255).toInt()
+                                    )
+                                    paint.strokeWidth = line.strokeWidth * ((scaleX + scaleY) / 2f)
+                                    
+                                    val startX = (line.start.x - imgLeft - cropOffsetX) * scaleX
+                                    val startY = (line.start.y - imgTop - cropOffsetY) * scaleY
+                                    val endX = (line.end.x - imgLeft - cropOffsetX) * scaleX
+                                    val endY = (line.end.y - imgTop - cropOffsetY) * scaleY
+                                    
+                                    canvas.drawLine(startX, startY, endX, endY, paint)
+                                }
+                                
+                                // Save to temp file
+                                LogKeeper.log("Rendering ${lines.size} drawn lines and cropping image...", "PhotoEditor")
+                                val tempFile = java.io.File(context.cacheDir, "edited_${System.currentTimeMillis()}.jpg")
+                                val out = java.io.FileOutputStream(tempFile)
+                                resBmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                                out.flush()
+                                out.close()
+                                
+                                LogKeeper.log("Editor render success. Handing off to compressor...", "PhotoEditor")
+                                Uri.fromFile(tempFile).toString()
+                            } catch (e: Exception) {
+                                LogKeeper.logError("PhotoEditor", "Save rendering failed", e)
+                                uriString
+                            }
+                        }
+                        
+                        val intent = android.content.Intent(context, com.example.service.CompressionService::class.java).apply {
+                            putStringArrayListExtra("uris", java.util.ArrayList(listOf(editedUri)))
+                            putExtra("maxWidth", w)
+                            putExtra("maxHeight", h)
+                        }
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                            context.startForegroundService(intent)
+                        } else {
+                            context.startService(intent)
+                        }
+                        android.widget.Toast.makeText(context, "Rendering & Compression started.", android.widget.Toast.LENGTH_LONG).show()
+                        showCompressionDialog = false
+                        onNavigateBack()
+                    }
                 }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-                showCompressionDialog = false
-                onNavigateBack()
-            }
         )
     }
 }
