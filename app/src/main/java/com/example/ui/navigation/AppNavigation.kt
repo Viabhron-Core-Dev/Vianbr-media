@@ -170,6 +170,10 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
     if (com.example.service.CompressionStatus.isRunning) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            ),
             title = { androidx.compose.material3.Text("Compressing Images") },
             text = {
                 androidx.compose.foundation.layout.Column {
