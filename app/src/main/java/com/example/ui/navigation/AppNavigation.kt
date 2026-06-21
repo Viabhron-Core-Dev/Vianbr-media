@@ -126,6 +126,14 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
                     if (!navController.popBackStack()) {
                         (context as? android.app.Activity)?.finish()
                     }
+                },
+                onNavigateToEdit = { editUri ->
+                    val encodedUri = android.util.Base64.encodeToString(editUri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                    // If video -> photo_editor (which should ideally be video editor but prompt says "edit(for audio and video(placeholder))"
+                    // If audio -> audio_trimmer
+                    // Need to find out mimeType or assume we can check in PlayerScreen and emit "audio_trimmer/..." or "photo_editor/..." route to AppNavigation
+                    // Actually, let's just make onNavigateToEdit emit the full route!
+                    navController.navigate(editUri)
                 }
             )
         }

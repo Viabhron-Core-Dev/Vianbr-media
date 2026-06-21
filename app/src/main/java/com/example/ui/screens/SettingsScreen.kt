@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -16,6 +17,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.example.LogKeeper
 import com.example.data.SettingsManager
 
@@ -130,7 +133,55 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             
             Text("Media Configuration", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Inclusion Extensions: ${extensions.joinToString(", ")}", style = MaterialTheme.typography.bodyMedium)
+            Text("Included Extensions:", style = MaterialTheme.typography.labelLarge)
+            
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                extensions.forEach { ext ->
+                    InputChip(
+                        selected = false,
+                        onClick = { },
+                        label = { Text(ext) },
+                        trailingIcon = {
+                            IconButton(
+                                onClick = { 
+                                    settingsManager.setExtensions(extensions.filter { it != ext }) 
+                                },
+                                modifier = Modifier.size(16.dp)
+                            ) {
+                                Icon(Icons.Filled.Clear, contentDescription = "Remove")
+                            }
+                        }
+                    )
+                }
+            }
+            
+            var newExtension by remember { mutableStateOf("") }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                OutlinedTextField(
+                    value = newExtension,
+                    onValueChange = { newExtension = it },
+                    label = { Text("Add extension (e.g. mkv)") },
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = {
+                    val ext = newExtension.trim().removePrefix(".")
+                    if (ext.isNotEmpty() && !extensions.contains(ext)) {
+                        settingsManager.setExtensions(extensions + ext)
+                        newExtension = ""
+                    }
+                }) {
+                    Text("Add")
+                }
+            }
             
             Spacer(modifier = Modifier.height(24.dp))
             

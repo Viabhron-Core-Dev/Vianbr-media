@@ -145,7 +145,8 @@ fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
 @Composable
 fun PlayerScreen(
     uriString: String,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToEdit: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
@@ -731,6 +732,16 @@ fun PlayerScreen(
                                         onClick = { 
                                             showTopMenu = false
                                             showDetailsDialog = true 
+                                        }
+                                    )
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = { Text("Edit") },
+                                        onClick = {
+                                            showTopMenu = false
+                                            val isVideo = (mediaController?.videoSize?.width ?: 0) > 0 || (mediaController?.videoSize?.height ?: 0) > 0
+                                            val encodedUri = android.util.Base64.encodeToString(uriString.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                                            val route = if (isVideo) "photo_editor/$encodedUri" else "audio_trimmer/$encodedUri"
+                                            onNavigateToEdit(route)
                                         }
                                     )
                                     androidx.compose.material3.DropdownMenuItem(
