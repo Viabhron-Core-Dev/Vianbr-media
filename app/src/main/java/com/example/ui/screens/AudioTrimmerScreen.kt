@@ -8,11 +8,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
@@ -74,10 +78,41 @@ fun AudioTrimmerScreen(
     var endMs by remember { mutableLongStateOf(durationMs) }
     
     LaunchedEffect(durationLoaded) {
-        if (durationLoaded) endMs = durationMs
+        if (durationLoaded) {
+            if (endMs == 0L || endMs > durationMs) {
+                endMs = durationMs
+            }
+        }
     }
 
     var isExporting by remember { mutableStateOf(false) }
+    
+    val player = remember(context) { ExoPlayer.Builder(context).build() }
+    DisposableEffect(player) {
+        onDispose {
+            player.release()
+        }
+    }
+    
+    LaunchedEffect(uri) {
+        player.setMediaItem(MediaItem.fromUri(uri))
+        player.prepare()
+    }
+    
+    var isPlaying by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(isPlaying, endMs) {
+        if (isPlaying) {
+            while (kotlinx.coroutines.isActive) {
+                if (player.currentPosition >= endMs) {
+                    player.pause()
+                    isPlaying = false
+                    break
+                }
+                kotlinx.coroutines.delay(50)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -184,7 +219,33 @@ fun AudioTrimmerScreen(
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                     )
                     
-                    Spacer(modifier = Modifier.height(48.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Preview playback
+                    IconButton(
+                        onClick = {
+                            if (isPlaying) {
+                                player.pause()
+                                isPlaying = false
+                            } else {
+                                player.seekTo(startMs)
+                                player.play()
+                                isPlaying = true
+                            }
+                        },
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                    ) {
+                        Icon(
+                            if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = "Play/Pause preview",
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
                     
                     // Dials
                     Row(
@@ -248,23 +309,32 @@ fun DialControl(
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .pointerInput(Unit) {
+                    var lastAngle = 0f
+                    var tempValue = value
                     detectDragGestures(
                         onDragStart = { offset ->
                             center = Offset(size.width / 2f, size.height / 2f)
+                            val dx = offset.x - center.x
+                            val dy = offset.y - center.y
+                            lastAngle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                            tempValue = value
                         },
                         onDrag = { change, _ ->
                             val dragOffset = change.position
                             val dx = dragOffset.x - center.x
                             val dy = dragOffset.y - center.y
-                            // Math.atan2 gives angle from -PI to PI
-                            var newAngle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-                            // Shift so 0 is top
-                            newAngle += 90f
-                            if (newAngle < 0) newAngle += 360f
+                            val currentAngle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
                             
-                            val portion = newAngle / 360f
-                            val newVal = portion * maxValue
-                            onValueChange(newVal)
+                            var delta = currentAngle - lastAngle
+                            if (delta > 180f) delta -= 360f
+                            if (delta < -180f) delta += 360f
+                            
+                            lastAngle = currentAngle
+                            
+                            // Decrease sensitivity (e.g. 10x harder to turn)
+                            val valueDelta = (delta * 0.1f / 360f) * maxValue
+                            tempValue = (tempValue + valueDelta).coerceIn(0f, maxValue)
+                            onValueChange(tempValue)
                         }
                     )
                 },
@@ -306,7 +376,47 @@ fun DialControl(
         }
         Spacer(modifier = Modifier.height(16.dp))
         Text(label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-        Text(formatTrimmerTime(value.toLong()), style = MaterialTheme.typography.bodyMedium, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+        
+        var showEditDialog by remember { mutableStateOf(false) }
+        Text(
+            text = formatTrimmerTime(value.toLong()), 
+            style = MaterialTheme.typography.bodyMedium, 
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .clickable { showEditDialog = true }
+                .padding(8.dp)
+        )
+        
+        if (showEditDialog) {
+            var textValue by remember { mutableStateOf(value.toLong().toString()) }
+            AlertDialog(
+                onDismissRequest = { showEditDialog = false },
+                title = { Text("Edit $label") },
+                text = {
+                    OutlinedTextField(
+                        value = textValue,
+                        onValueChange = { textValue = it },
+                        label = { Text("Time in Milliseconds") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val ms = textValue.toLongOrNull()
+                        if (ms != null) {
+                            onValueChange(ms.toFloat().coerceIn(0f, maxValue))
+                        }
+                        showEditDialog = false
+                    }) {
+                        Text("OK")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEditDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
     }
 }
 
