@@ -71,7 +71,8 @@ enum class SortOrder { NAME, DATE }
 fun MainScreen(
     onNavigateToPlayer: (String) -> Unit = {},
     onNavigateToPhotoEditor: (String) -> Unit = {},
-    onNavigateToPlaylists: () -> Unit = {}
+    onNavigateToPlaylists: () -> Unit = {},
+    onNavigateToAudioTrimmer: (String) -> Unit = {}
 ) {
     val viewModel: MediaViewModel = viewModel()
     val mediaFolders by viewModel.mediaFolders.collectAsState()
@@ -218,6 +219,14 @@ fun MainScreen(
                             Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = "Rename")
                         }
                         Spacer(modifier = Modifier.weight(1f))
+                        if (selectedMediaItems.first().mediaType == com.example.data.MediaType.AUDIO) {
+                            IconButton(onClick = {
+                                onNavigateToAudioTrimmer(selectedMediaItems.first().uri.toString())
+                            }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                     IconButton(onClick = {
                         val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {

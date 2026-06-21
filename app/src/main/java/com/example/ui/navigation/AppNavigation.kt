@@ -86,6 +86,10 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
                 },
                 onNavigateToPlaylists = {
                     navController.navigate("playlists")
+                },
+                onNavigateToAudioTrimmer = { uri ->
+                    val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                    navController.navigate("audio_trimmer/$encodedUri")
                 }
             )
         }
@@ -139,6 +143,21 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
                     if (!navController.popBackStack()) {
                         (context as? android.app.Activity)?.finish()
                     }
+                }
+            )
+        }
+        composable(
+            route = "audio_trimmer/{uri}",
+            arguments = listOf(navArgument("uri") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val uriString = backStackEntry.arguments?.getString("uri") ?: ""
+            val decodedUri = try {
+                String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
+            } catch (e: Exception) { uriString }
+            com.example.ui.screens.AudioTrimmerScreen(
+                uriString = decodedUri,
+                onNavigateBack = { 
+                    navController.popBackStack()
                 }
             )
         }
