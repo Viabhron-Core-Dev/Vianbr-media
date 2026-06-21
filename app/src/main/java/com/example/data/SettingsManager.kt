@@ -36,7 +36,7 @@ class SettingsManager private constructor(context: Context) {
         
         val imageExts = setOf("jpg", "jpeg", "png", "webp", "heic")
         val exts = if (savedExts != null) {
-            (savedExts + defaultExts).filterNot { it in imageExts }.distinct()
+            savedExts.filterNot { it in imageExts }.distinct()
         } else {
             defaultExts.toList()
         }
