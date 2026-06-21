@@ -59,28 +59,30 @@ class MediaRepository(private val context: Context) {
 
         try {
             val projection = arrayOf(
-                android.provider.MediaStore.Video.Media._ID,
-                android.provider.MediaStore.Video.Media.DISPLAY_NAME,
-                android.provider.MediaStore.Video.Media.DURATION,
-                android.provider.MediaStore.Video.Media.DATE_MODIFIED,
-                android.provider.MediaStore.Video.Media.BUCKET_ID,
-                android.provider.MediaStore.Video.Media.BUCKET_DISPLAY_NAME,
-                android.provider.MediaStore.Video.Media.DATA,
-                android.provider.MediaStore.Video.Media.SIZE
+                android.provider.MediaStore.MediaColumns._ID,
+                android.provider.MediaStore.MediaColumns.DISPLAY_NAME,
+                android.provider.MediaStore.MediaColumns.DURATION,
+                android.provider.MediaStore.MediaColumns.DATE_MODIFIED,
+                android.provider.MediaStore.MediaColumns.BUCKET_ID,
+                android.provider.MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
+                android.provider.MediaStore.MediaColumns.DATA,
+                android.provider.MediaStore.MediaColumns.SIZE,
+                android.provider.MediaStore.MediaColumns.MIME_TYPE
             )
 
             context.contentResolver.query(
-                android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                android.provider.MediaStore.Files.getContentUri("external"),
                 projection, null, null, null
             )?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media._ID)
-                val nameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DISPLAY_NAME)
-                val durCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DURATION)
-                val dateCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DATE_MODIFIED)
-                val bucketIdCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.BUCKET_ID)
-                val bucketNameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
-                val dataCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DATA)
-                val sizeCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.SIZE)
+                val idCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns._ID)
+                val nameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
+                val durCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.DURATION)
+                val dateCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.DATE_MODIFIED)
+                val bucketIdCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.BUCKET_ID)
+                val bucketNameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.BUCKET_DISPLAY_NAME)
+                val dataCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.DATA)
+                val sizeCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.SIZE)
+                val mimeCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.MIME_TYPE)
                 
                 val currentTime = System.currentTimeMillis()
                 val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
@@ -99,8 +101,9 @@ class MediaRepository(private val context: Context) {
                     val bucketName = cursor.getString(bucketNameCol) ?: "Unknown Folder"
                     val dataPath = cursor.getString(dataCol) ?: ""
                     val itemSize = cursor.getLong(sizeCol)
+                    val mimeType = cursor.getString(mimeCol) ?: ""
 
-                    val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                    val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Files.getContentUri("external"), id)
                     val uriStr = uri.toString()
                     
                     val isFinished = settings.isFinished(uriStr)
@@ -114,13 +117,19 @@ class MediaRepository(private val context: Context) {
                         if (currentTime - dateMs < fifteenDaysMs) PlaybackTag.NEW else PlaybackTag.UNSEEN
                     }
 
+                    val mediaType = when {
+                        mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v") -> MediaType.VIDEO
+                        mimeType.startsWith("image/") || ext in listOf("jpg", "jpeg", "png", "webp", "heic") -> MediaType.IMAGE
+                        else -> MediaType.AUDIO
+                    }
+
                     val item = MediaItem(
                         id = id,
                         uri = uri,
                         name = name,
                         duration = dur,
                         dateAdded = dateMs,
-                        mediaType = MediaType.VIDEO,
+                        mediaType = mediaType,
                         hasSubtitle = false, // Subtitles not easily extracted this way without checking filesystem
                         tag = tag,
                         size = itemSize

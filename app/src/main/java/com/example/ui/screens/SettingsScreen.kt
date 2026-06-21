@@ -224,6 +224,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 Text("Show Logger FAB", modifier = Modifier.weight(1f))
                 Switch(checked = showLoggerFab, onCheckedChange = { settingsManager.setShowLoggerFab(it) })
             }
+            
+            Spacer(modifier = Modifier.height(100.dp))
         }
         
         if (showExcludeDialog) {
