@@ -194,7 +194,11 @@ fun PlayerScreen(
         ) { uri: Uri? ->
             if (uri != null) {
                 Toast.makeText(context, "Added subtitle: $uri", Toast.LENGTH_SHORT).show()
-                // In a full implementation, you'd send this URI to the PlaybackService to add to the MediaItem's SubtitleConfigurations
+                val args = android.os.Bundle().apply {
+                    putString("subtitle_uri", uri.toString())
+                }
+                val command = androidx.media3.session.SessionCommand("ADD_SUBTITLE", android.os.Bundle.EMPTY)
+                mediaController?.sendCustomCommand(command, args)
             }
         }
     val playerViewRef = remember { mutableStateOf<PlayerView?>(null) }

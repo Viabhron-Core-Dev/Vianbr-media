@@ -81,6 +81,61 @@ class PlaybackService : MediaSessionService() {
 
         mediaSession = MediaSession.Builder(this, exoPlayer!!)
             .setCallback(object : MediaSession.Callback {
+                override fun onConnect(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo
+                ): MediaSession.ConnectionResult {
+                    val defaultResult = super.onConnect(session, controller)
+                    val customCommands = defaultResult.availableSessionCommands.buildUpon()
+                        .add(androidx.media3.session.SessionCommand("ADD_SUBTITLE", android.os.Bundle.EMPTY))
+                        .build()
+                    return MediaSession.ConnectionResult.accept(customCommands, defaultResult.availablePlayerCommands)
+                }
+
+                override fun onCustomCommand(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                    customCommand: androidx.media3.session.SessionCommand,
+                    args: android.os.Bundle
+                ): ListenableFuture<androidx.media3.session.SessionResult> {
+                    if (customCommand.customAction == "ADD_SUBTITLE") {
+                        val uriStr = args.getString("subtitle_uri")
+                        if (uriStr != null) {
+                            val player = session.player
+                            val currentItem = player.currentMediaItem
+                            if (currentItem != null) {
+                                val mimeType = if (uriStr.endsWith(".vtt", true)) androidx.media3.common.MimeTypes.TEXT_VTT
+                                    else if (uriStr.endsWith(".ssa", true) || uriStr.endsWith(".ass", true)) androidx.media3.common.MimeTypes.TEXT_SSA
+                                    else androidx.media3.common.MimeTypes.APPLICATION_SUBRIP
+                                val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(uriStr))
+                                    .setMimeType(mimeType)
+                                    .setLanguage(null)
+                                    .setSelectionFlags(androidx.media3.common.C.SELECTION_FLAG_DEFAULT)
+                                    .build()
+                                
+                                val newItemBuilder = currentItem.buildUpon()
+                                val oldConfigs = currentItem.localConfiguration?.subtitleConfigurations
+                                if (oldConfigs != null) {
+                                    newItemBuilder.setSubtitleConfigurations(oldConfigs + subtitleConfig)
+                                } else {
+                                    newItemBuilder.setSubtitleConfigurations(listOf(subtitleConfig))
+                                }
+                                
+                                val newItem = newItemBuilder.build()
+                                val currentItemIndex = player.currentMediaItemIndex
+                                player.replaceMediaItem(currentItemIndex, newItem)
+                                
+                                // Reset the track selection to enable text tracks
+                                val builder = player.trackSelectionParameters.buildUpon()
+                                builder.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                                player.trackSelectionParameters = builder.build()
+                            }
+                        }
+                        return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
+                    }
+                    return super.onCustomCommand(session, controller, customCommand, args)
+                }
+
                 override fun onAddMediaItems(
                     mediaSession: MediaSession,
                     controller: MediaSession.ControllerInfo,
