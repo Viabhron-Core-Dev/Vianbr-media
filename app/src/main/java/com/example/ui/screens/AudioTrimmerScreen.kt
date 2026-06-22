@@ -101,17 +101,22 @@ fun AudioTrimmerScreen(
     }
     
     var isPlaying by remember { mutableStateOf(false) }
+    var currentPlaybackMs by remember { mutableLongStateOf(0L) }
     
     LaunchedEffect(isPlaying, endMs) {
         if (isPlaying) {
             while (isActive) {
+                currentPlaybackMs = player.currentPosition
                 if (player.currentPosition >= endMs) {
                     player.pause()
                     isPlaying = false
+                    currentPlaybackMs = startMs
                     break
                 }
                 kotlinx.coroutines.delay(50)
             }
+        } else {
+            currentPlaybackMs = startMs
         }
     }
 
@@ -210,6 +215,12 @@ fun AudioTrimmerScreen(
                             // Start and End markers
                             drawLine(color = Color.White, start = Offset(startX, 0f), end = Offset(startX, h), strokeWidth = 2.dp.toPx())
                             drawLine(color = Color.White, start = Offset(endX, 0f), end = Offset(endX, h), strokeWidth = 2.dp.toPx())
+                            
+                            // Current Playback marker
+                            if (isPlaying || currentPlaybackMs > startMs) {
+                                val currentX = (currentPlaybackMs.toFloat() / durationMs.coerceAtLeast(1L)) * w
+                                drawLine(color = Color.Red, start = Offset(currentX, 0f), end = Offset(currentX, h), strokeWidth = 2.dp.toPx())
+                            }
                         }
                     }
                     
@@ -332,8 +343,8 @@ fun DialControl(
                             
                             lastAngle = currentAngle
                             
-                            // Decrease sensitivity (e.g. 10x harder to turn)
-                            val valueDelta = (delta * 0.1f / 360f) * maxValue
+                            // Decrease sensitivity (e.g. 50x harder to turn)
+                            val valueDelta = (delta * 0.02f / 360f) * maxValue
                             tempValue = (tempValue + valueDelta).coerceIn(0f, maxValue)
                             onValueChange(tempValue)
                         }
@@ -390,7 +401,7 @@ fun DialControl(
         )
         
         if (showEditDialog) {
-            var textValue by remember { mutableStateOf(value.toLong().toString()) }
+            var textValue by remember { mutableStateOf(formatTrimmerTime(value.toLong())) }
             AlertDialog(
                 onDismissRequest = { showEditDialog = false },
                 title = { Text("Edit $label") },
@@ -398,13 +409,13 @@ fun DialControl(
                     OutlinedTextField(
                         value = textValue,
                         onValueChange = { textValue = it },
-                        label = { Text("Time in Milliseconds") },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                        label = { Text("Time (HH:MM:SS.MMM)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Text)
                     )
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        val ms = textValue.toLongOrNull()
+                        val ms = parseTrimmerTime(textValue)
                         if (ms != null) {
                             onValueChange(ms.toFloat().coerceIn(0f, maxValue))
                         }
@@ -421,12 +432,48 @@ fun DialControl(
     }
 }
 
+private fun parseTrimmerTime(timeStr: String): Long? {
+    try {
+        val parts = timeStr.trim().split(":", ".")
+        if (parts.isEmpty()) return null
+        var ms = 0L
+        if (timeStr.contains(".")) {
+            ms = parts.last().padEnd(3, '0').substring(0, 3).toLong()
+        }
+        
+        val timeParts = timeStr.substringBefore(".").split(":")
+        var seconds = 0L
+        var minutes = 0L
+        var hours = 0L
+        
+        if (timeParts.size == 1) {
+            seconds = timeParts[0].toLong()
+        } else if (timeParts.size == 2) {
+            minutes = timeParts[0].toLong()
+            seconds = timeParts[1].toLong()
+        } else if (timeParts.size >= 3) {
+            hours = timeParts[0].toLong()
+            minutes = timeParts[1].toLong()
+            seconds = timeParts[2].toLong()
+        }
+        
+        return hours * 3600000 + minutes * 60000 + seconds * 1000 + ms
+    } catch (e: Exception) {
+        return null
+    }
+}
+
 private fun formatTrimmerTime(ms: Long): String {
     val totalSeconds = ms / 1000
-    val minutes = totalSeconds / 60
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
     val millis = ms % 1000
-    return String.format("%02d:%02d.%03d", minutes, seconds, millis)
+    return if (hours > 0) {
+        String.format("%02d:%02d:%02d.%03d", hours, minutes, seconds, millis)
+    } else {
+        String.format("%02d:%02d.%03d", minutes, seconds, millis)
+    }
 }
 
 // Media3 Transformer API
