@@ -40,6 +40,7 @@ import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
 import androidx.media3.transformer.EditedMediaItem
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -103,7 +104,7 @@ fun AudioTrimmerScreen(
     
     LaunchedEffect(isPlaying, endMs) {
         if (isPlaying) {
-            while (kotlinx.coroutines.isActive) {
+            while (isActive) {
                 if (player.currentPosition >= endMs) {
                     player.pause()
                     isPlaying = false

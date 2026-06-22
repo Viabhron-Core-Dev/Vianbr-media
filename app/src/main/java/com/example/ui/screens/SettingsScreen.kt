@@ -75,6 +75,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
+                .imePadding()
+                .navigationBarsPadding()
         ) {
             Text("Storage Configuration", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
@@ -177,7 +179,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = {
-                    val ext = newExtension.trim().removePrefix(".")
+                    val ext = newExtension.trim().removePrefix(".").lowercase()
                     if (ext.isNotEmpty() && !extensions.contains(ext)) {
                         settingsManager.setExtensions(extensions + ext)
                         newExtension = ""
