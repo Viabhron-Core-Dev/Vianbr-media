@@ -88,7 +88,25 @@ fun AudioTrimmerScreen(
 
     var isExporting by remember { mutableStateOf(false) }
     
-    val player = remember(context) { ExoPlayer.Builder(context).build() }
+    val player = remember(context) { 
+        ExoPlayer.Builder(context).build().apply {
+            addListener(object : androidx.media3.common.Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    val stateName = when (playbackState) {
+                        androidx.media3.common.Player.STATE_IDLE -> "STATE_IDLE"
+                        androidx.media3.common.Player.STATE_BUFFERING -> "STATE_BUFFERING"
+                        androidx.media3.common.Player.STATE_READY -> "STATE_READY"
+                        androidx.media3.common.Player.STATE_ENDED -> "STATE_ENDED"
+                        else -> "UNKNOWN"
+                    }
+                    com.example.LogKeeper.log("AudioTrimmerPlayer state: $stateName", "AudioTrimmer")
+                }
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    com.example.LogKeeper.logError("AudioTrimmer", "Player error: ${error.message}", error)
+                }
+            })
+        }
+    }
     DisposableEffect(player) {
         onDispose {
             player.release()
@@ -236,6 +254,7 @@ fun AudioTrimmerScreen(
                     // Preview playback
                     IconButton(
                         onClick = {
+                            com.example.LogKeeper.log("Play button clicked. isPlaying -> ${!isPlaying}. startMs=$startMs, endMs=$endMs, currentPos=${player.currentPosition}", "AudioTrimmer")
                             if (isPlaying) {
                                 player.pause()
                                 isPlaying = false
