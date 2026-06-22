@@ -739,8 +739,7 @@ fun PlayerScreen(
                                         onClick = {
                                             showTopMenu = false
                                             val isVideo = (mediaController?.videoSize?.width ?: 0) > 0 || (mediaController?.videoSize?.height ?: 0) > 0
-                                            val encodedUri = android.util.Base64.encodeToString(uriString.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-                                            val route = if (isVideo) "photo_editor/$encodedUri" else "audio_trimmer/$encodedUri"
+                                            val route = if (isVideo) "photo_editor/$uriString" else "audio_trimmer/$uriString"
                                             onNavigateToEdit(route)
                                         }
                                     )
