@@ -154,7 +154,7 @@ fun AudioTrimmerScreen(
                                 exportTrimmedAudio(context, uri, startMs, endMs) { success ->
                                     isExporting = false
                                     if (success) {
-                                        Toast.makeText(context, "Trimmed audio saved to Downloads", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Trimmed audio saved successfully", Toast.LENGTH_SHORT).show()
                                         onNavigateBack()
                                     } else {
                                         Toast.makeText(context, "Export failed", Toast.LENGTH_SHORT).show()
@@ -511,25 +511,100 @@ private fun exportTrimmedAudio(context: Context, inputUri: Uri, startMs: Long, e
         
     val editedMediaItem = EditedMediaItem.Builder(mediaItem).build()
     
-    val outputDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-    if (!outputDir.exists()) outputDir.mkdirs()
-    val outputFile = java.io.File(outputDir, "Trimmed_Audio_${System.currentTimeMillis()}.m4a")
+    // We export to a local temp file, then copy to SAF or MediaStore
+    val tempFile = java.io.File(context.cacheDir, "Temp_Trim_${System.currentTimeMillis()}.m4a")
 
     transformer.addListener(object : Transformer.Listener {
         override fun onCompleted(composition: Composition, exportResult: ExportResult) {
             super.onCompleted(composition, exportResult)
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                onComplete(true)
-            }
+            
+            Thread {
+                val settingsManager = com.example.data.SettingsManager.getInstance(context)
+                val outputUriStr = settingsManager.outputFolderUri.value
+                
+                val originalName = getDisplayNameFromUri(context, inputUri)
+                val sdf = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
+                val dateStr = sdf.format(java.util.Date())
+                val fileName = "${originalName}_${dateStr}_trimmed.m4a"
+                
+                val outStream = getOutputStream(context, outputUriStr, fileName, "audio/mp4")
+                val success = if (outStream != null) {
+                    copyFileToStream(tempFile, outStream)
+                } else {
+                    false
+                }
+                
+                if (tempFile.exists()) {
+                    tempFile.delete()
+                }
+                
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    onComplete(success)
+                }
+            }.start()
         }
 
         override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
             super.onError(composition, exportResult, exportException)
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 onComplete(false)
             }
         }
     })
 
-    transformer.start(editedMediaItem, outputFile.absolutePath)
+    transformer.start(editedMediaItem, tempFile.absolutePath)
+}
+
+private fun getOutputStream(context: Context, outputUriStr: String?, fileName: String, mimeType: String): java.io.OutputStream? {
+    if (outputUriStr != null) {
+        try {
+            val treeUri = Uri.parse(outputUriStr)
+            val docId = android.provider.DocumentsContract.getTreeDocumentId(treeUri)
+            val docUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+            val newUri = android.provider.DocumentsContract.createDocument(
+                context.contentResolver,
+                docUri,
+                mimeType,
+                fileName
+            )
+            if (newUri != null) {
+                return context.contentResolver.openOutputStream(newUri)
+            }
+        } catch (e: Exception) {
+            com.example.LogKeeper.logError("AudioTrimmerScreen", "Failed SAF create", e)
+        }
+    }
+
+    // Fallback to media store (Downloads directory)
+    val contentValues = android.content.ContentValues().apply {
+        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/Compressed")
+        }
+    }
+    val collection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+    } else {
+        android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+    }
+    val uri = context.contentResolver.insert(collection, contentValues)
+    return uri?.let { context.contentResolver.openOutputStream(it) }
+}
+
+private fun copyFileToStream(source: java.io.File, destination: java.io.OutputStream): Boolean {
+    return try {
+        source.inputStream().use { input ->
+            destination.use { output ->
+                input.copyTo(output)
+            }
+        }
+        true
+    } catch (e: Exception) {
+        com.example.LogKeeper.logError("AudioTrimmerScreen", "Failed to copy trimmed file", e)
+        false
+    }
 }

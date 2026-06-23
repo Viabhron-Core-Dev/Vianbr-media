@@ -57,6 +57,21 @@ class MediaRepository(private val context: Context) {
         val excludedFolders = settings.excludedFolders.value
         val exts = settings.extensions.value
 
+        val outputFolderUriVal = settings.outputFolderUri.value
+        var customOutputSegment: String? = null
+        if (!outputFolderUriVal.isNullOrEmpty()) {
+            try {
+                val treeUri = Uri.parse(outputFolderUriVal)
+                val docId = DocumentsContract.getTreeDocumentId(treeUri)
+                val segment = docId.substringAfter(':').trim('/')
+                if (segment.isNotEmpty()) {
+                    customOutputSegment = segment
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+
         try {
             val projection = arrayOf(
                 android.provider.MediaStore.MediaColumns._ID,
@@ -91,6 +106,13 @@ class MediaRepository(private val context: Context) {
                     val bucketId = cursor.getString(bucketIdCol) ?: continue
                     if (excludedFolders.contains(bucketId)) continue
 
+                    val dataPath = cursor.getString(dataCol) ?: ""
+                    val isDefaultOutput = dataPath.lowercase().contains("/download/compressed")
+                    val isCustomOutput = !customOutputSegment.isNullOrEmpty() && dataPath.lowercase().contains(customOutputSegment!!.lowercase())
+                    if (isDefaultOutput || isCustomOutput) {
+                        continue
+                    }
+
                     val name = cursor.getString(nameCol) ?: continue
                     val ext = name.substringAfterLast('.', "").lowercase()
                     if (!exts.contains(ext) && !ext.isEmpty()) continue
@@ -99,7 +121,6 @@ class MediaRepository(private val context: Context) {
                     val dur = cursor.getLong(durCol)
                     val dateMs = cursor.getLong(dateCol) * 1000
                     val bucketName = cursor.getString(bucketNameCol) ?: "Unknown Folder"
-                    val dataPath = cursor.getString(dataCol) ?: ""
                     val itemSize = cursor.getLong(sizeCol)
                     val mimeType = cursor.getString(mimeCol) ?: ""
 
