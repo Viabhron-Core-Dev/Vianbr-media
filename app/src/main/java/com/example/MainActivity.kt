@@ -118,7 +118,14 @@ class MainActivity : ComponentActivity() {
                     initialUris = uris
                 }
               }
-              AppNavigation(initialUris = initialUris)
+              
+              val forceAction = intent?.component?.className?.let { className ->
+                  if (className.endsWith("PlayMediaActivity")) "play"
+                  else if (className.endsWith("EditMediaActivity")) "edit"
+                  else null
+              }
+              
+              AppNavigation(initialUris = initialUris, forceAction = forceAction)
               
               // Global Diagnostic FAB
               val logEnabled by LogKeeper.isEnabled.collectAsState()

@@ -11,6 +11,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.data.SettingsManager
+import com.example.ui.screens.PhotoEditorScreen
+import com.example.ui.screens.AudioTrimmerScreen
+import com.example.ui.screens.VideoEditorScreen
 import com.example.ui.screens.MainScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.WelcomeScreen
@@ -25,21 +28,35 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun AppNavigation(initialUris: List<String> = emptyList()) {
+fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? = null) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val navController = rememberNavController()
     
-    val startDest = remember(initialUris) {
+    val startDest = remember(initialUris, forceAction) {
         if (initialUris.isNotEmpty()) {
-            val isImage = initialUris.first().let { uri ->
-                val mimeType = context.contentResolver.getType(android.net.Uri.parse(uri))
-                mimeType?.startsWith("image/") == true
-            }
-            if (isImage) {
-                if (initialUris.size == 1) {
+            val mimeType = context.contentResolver.getType(android.net.Uri.parse(initialUris.first()))
+            val isImage = mimeType?.startsWith("image/") == true
+            val isAudio = mimeType?.startsWith("audio/") == true
+            val isVideo = mimeType?.startsWith("video/") == true
+            val isAnimatedImage = mimeType == "image/gif" || mimeType == "image/webp"
+            
+            if (forceAction == "play") {
+                val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                "player/$encodedUri"
+            } else if (forceAction == "edit") {
+                val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                if (isAudio) "audio_trimmer/$encodedUri"
+                else if (isVideo) "video_editor/$encodedUri"
+                else if (isImage && !isAnimatedImage) "photo_editor/$encodedUri"
+                else "player/$encodedUri"
+            } else if (isImage) {
+                if (initialUris.size == 1 && !isAnimatedImage) {
                     val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     "photo_editor/$encodedUri"
+                } else if (initialUris.size == 1 && isAnimatedImage) {
+                    val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                    "player/$encodedUri"
                 } else {
                     "main"
                 }
@@ -90,6 +107,10 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
                 onNavigateToAudioTrimmer = { uri ->
                     val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("audio_trimmer/$encodedUri")
+                },
+                onNavigateToVideoEditor = { uri ->
+                    val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                    navController.navigate("video_editor/$encodedUri")
                 }
             )
         }
@@ -163,6 +184,21 @@ fun AppNavigation(initialUris: List<String> = emptyList()) {
                 String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
             } catch (e: Exception) { uriString }
             com.example.ui.screens.AudioTrimmerScreen(
+                uriString = decodedUri,
+                onNavigateBack = { 
+                    navController.popBackStack()
+                }
+            )
+        }
+        composable(
+            route = "video_editor/{uri}",
+            arguments = listOf(navArgument("uri") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val uriString = backStackEntry.arguments?.getString("uri") ?: ""
+            val decodedUri = try {
+                String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
+            } catch (e: Exception) { uriString }
+            com.example.ui.screens.VideoEditorScreen(
                 uriString = decodedUri,
                 onNavigateBack = { 
                     navController.popBackStack()

@@ -72,7 +72,8 @@ fun MainScreen(
     onNavigateToPlayer: (String) -> Unit = {},
     onNavigateToPhotoEditor: (String) -> Unit = {},
     onNavigateToPlaylists: () -> Unit = {},
-    onNavigateToAudioTrimmer: (String) -> Unit = {}
+    onNavigateToAudioTrimmer: (String) -> Unit = {},
+    onNavigateToVideoEditor: (String) -> Unit = {}
 ) {
     val viewModel: MediaViewModel = viewModel()
     val mediaFolders by viewModel.mediaFolders.collectAsState()
@@ -219,14 +220,21 @@ fun MainScreen(
                             Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = "Rename")
                         }
                         Spacer(modifier = Modifier.weight(1f))
-                        if (selectedMediaItems.first().mediaType == com.example.data.MediaType.AUDIO) {
-                            IconButton(onClick = {
-                                onNavigateToAudioTrimmer(selectedMediaItems.first().uri.toString())
-                            }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                        IconButton(onClick = {
+                            val item = selectedMediaItems.first()
+                            val mimeType = context.contentResolver.getType(item.uri) ?: ""
+                            val isAnimated = mimeType == "image/gif" || mimeType == "image/webp"
+                            
+                            when {
+                                item.mediaType == com.example.data.MediaType.AUDIO -> onNavigateToAudioTrimmer(item.uri.toString())
+                                item.mediaType == com.example.data.MediaType.VIDEO -> onNavigateToVideoEditor(item.uri.toString())
+                                item.mediaType == com.example.data.MediaType.IMAGE && !isAnimated -> onNavigateToPhotoEditor(item.uri.toString())
+                                else -> Toast.makeText(context, "Editing this format is not supported", Toast.LENGTH_SHORT).show()
                             }
-                            Spacer(modifier = Modifier.weight(1f))
+                        }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit")
                         }
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                     IconButton(onClick = {
                         val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {

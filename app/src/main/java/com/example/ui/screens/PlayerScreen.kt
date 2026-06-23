@@ -738,8 +738,17 @@ fun PlayerScreen(
                                         text = { Text("Edit") },
                                         onClick = {
                                             showTopMenu = false
-                                            val isVideo = (mediaController?.videoSize?.width ?: 0) > 0 || (mediaController?.videoSize?.height ?: 0) > 0
-                                            val route = if (isVideo) "photo_editor/$uriString" else "audio_trimmer/$uriString"
+                                            val mimeType = context.contentResolver.getType(decodedUri)
+                                            val isAudio = mimeType?.startsWith("audio/") == true
+                                            val isVideo = mimeType?.startsWith("video/") == true
+                                            val isAnimatedImage = mimeType == "image/gif" || mimeType == "image/webp"
+                                            val isImage = mimeType?.startsWith("image/") == true
+
+                                            val route = if (isAudio) "audio_trimmer/$uriString"
+                                            else if (isVideo) "video_editor/$uriString"
+                                            else if (isImage && !isAnimatedImage) "photo_editor/$uriString"
+                                            else "video_editor/$uriString"
+                                            
                                             onNavigateToEdit(route)
                                         }
                                     )
