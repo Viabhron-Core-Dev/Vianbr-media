@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.example.LogKeeper
 import com.example.data.SettingsManager
+import kotlinx.coroutines.launch
 
 import com.example.ui.screens.MediaViewModel
 import com.example.data.MediaFolder
@@ -34,6 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 fun SettingsScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
+    val coroutineScope = rememberCoroutineScope()
     var showPlayerSettingsDialog by remember { mutableStateOf(false) }
     
     val viewModel: MediaViewModel = viewModel()
@@ -54,6 +56,51 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             context.contentResolver.takePersistableUriPermission(it, flags)
             settingsManager.setOutputFolderUri(it.toString())
+        }
+    }
+
+    val createBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        uri?.let {
+            coroutineScope.launch {
+                try {
+                    val backupStr = com.example.data.BackupManager.createBackup(context)
+                    context.contentResolver.openOutputStream(it)?.use { os ->
+                        os.write(backupStr.toByteArray())
+                    }
+                    android.widget.Toast.makeText(context, "Backup saved successfully!", android.widget.Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    com.example.LogKeeper.logError("SettingsScreen", "Failed to save backup", e)
+                    android.widget.Toast.makeText(context, "Failed to save backup", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    val restoreBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            coroutineScope.launch {
+                try {
+                    val backupStr = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader ->
+                        reader.readText()
+                    }
+                    if (backupStr != null) {
+                        val success = com.example.data.BackupManager.restoreBackup(context, backupStr)
+                        if (success) {
+                            android.widget.Toast.makeText(context, "Backup restored successfully! Updating UI...", android.widget.Toast.LENGTH_LONG).show()
+                            onNavigateBack()
+                        } else {
+                            android.widget.Toast.makeText(context, "Failed to restore backup (invalid format)", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    com.example.LogKeeper.logError("SettingsScreen", "Failed to read backup file", e)
+                    android.widget.Toast.makeText(context, "Error reading backup file", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 
@@ -203,6 +250,36 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
                 ) {
                     PlayerSettingsScreen(onNavigateBack = { showPlayerSettingsDialog = false })
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Text("Data Management", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Backup and Restore", style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Export or import all application settings, excluded folders, preferred extensions, and custom sidebar elements/playlists structure to/from a separate backup file.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Button(
+                    onClick = { createBackupLauncher.launch("vianbr_backup.json") },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Backup (Export)")
+                }
+                FilledTonalButton(
+                    onClick = { restoreBackupLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*")) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Restore (Import)")
                 }
             }
             

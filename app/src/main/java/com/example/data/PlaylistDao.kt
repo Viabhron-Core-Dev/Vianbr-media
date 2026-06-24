@@ -18,6 +18,15 @@ interface PlaylistDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylist(playlist: Playlist): Long
 
+    @Query("SELECT * FROM playlists")
+    suspend fun getAllPlaylistsSync(): List<Playlist>
+
+    @Query("SELECT * FROM playlist_items")
+    suspend fun getAllPlaylistItemsSync(): List<PlaylistItem>
+
+    @Query("DELETE FROM playlists")
+    suspend fun clearAllPlaylists()
+
     @Query("DELETE FROM playlists WHERE id = :id")
     suspend fun deletePlaylistById(id: Int)
 

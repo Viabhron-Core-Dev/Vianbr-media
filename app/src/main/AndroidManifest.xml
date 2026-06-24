@@ -122,6 +122,11 @@
             android:name=".service.CompressionService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+            
+        <service
+            android:name=".service.FFmpegService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
     </application>
 
 </manifest>

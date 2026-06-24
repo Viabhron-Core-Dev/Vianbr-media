@@ -68,14 +68,18 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
     }
 
     var batchCompressionUris by remember { mutableStateOf<List<String>?>(null) }
+    var batchFFmpegUris by remember { mutableStateOf<List<String>?>(null) }
     LaunchedEffect(initialUris) {
         if (initialUris.size > 1) {
-            val isImage = initialUris.first().let { uri ->
-                val mimeType = context.contentResolver.getType(android.net.Uri.parse(uri))
-                mimeType?.startsWith("image/") == true
-            }
+            val mimeType = context.contentResolver.getType(android.net.Uri.parse(initialUris.first()))
+            val isImage = mimeType?.startsWith("image/") == true
+            val isVideo = mimeType?.startsWith("video/") == true
+            val isAudio = mimeType?.startsWith("audio/") == true
+            
             if (isImage) {
                 batchCompressionUris = initialUris
+            } else if (isVideo || isAudio) {
+                batchFFmpegUris = initialUris
             }
         }
     }
@@ -230,6 +234,29 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
         )
     }
 
+    batchFFmpegUris?.let { uris ->
+        com.example.ui.components.FFmpegBatchDialog(
+            uris = uris,
+            onDismiss = {
+                batchFFmpegUris = null
+                if (initialUris.isNotEmpty()) { (context as? android.app.Activity)?.finish() }
+            },
+            onStartProcessing = { urisToProcess, commandTemplate, outputExt ->
+                val intent = android.content.Intent(context, com.example.service.FFmpegService::class.java).apply {
+                    putStringArrayListExtra("uris", java.util.ArrayList(urisToProcess))
+                    putExtra("commandTemplate", commandTemplate)
+                    putExtra("outputExt", outputExt)
+                }
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                batchFFmpegUris = null
+            }
+        )
+    }
+
     if (com.example.service.CompressionStatus.isRunning) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { },
@@ -254,6 +281,43 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
             confirmButton = {}
         )
     }
+
+    if (com.example.service.FFmpegStatus.isRunning) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            ),
+            title = { androidx.compose.material3.Text("Processing Video/Audio") },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    val total = com.example.service.FFmpegStatus.totalFiles
+                    val current = com.example.service.FFmpegStatus.currentFile
+                    val progressRatio = if (total > 0) current.toFloat() / total else 0f
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { progressRatio },
+                        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                    )
+                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
+                    androidx.compose.material3.Text("$current / $total files processed", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(4.dp))
+                    androidx.compose.material3.Text(com.example.service.FFmpegStatus.currentProgress, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val intent = android.content.Intent(context, com.example.service.FFmpegService::class.java).apply {
+                        action = "STOP"
+                    }
+                    context.startService(intent)
+                }) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            }
+        )
+    }
     
     var wasCompressing by remember { mutableStateOf(false) }
     LaunchedEffect(com.example.service.CompressionStatus.isRunning) {
@@ -262,6 +326,19 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
         } else if (wasCompressing) {
             wasCompressing = false
             android.widget.Toast.makeText(context, "Compression complete!", android.widget.Toast.LENGTH_SHORT).show()
+            if (initialUris.isNotEmpty()) {
+                (context as? android.app.Activity)?.finish()
+            }
+        }
+    }
+    
+    var wasFFmpegRunning by remember { mutableStateOf(false) }
+    LaunchedEffect(com.example.service.FFmpegStatus.isRunning) {
+        if (com.example.service.FFmpegStatus.isRunning) {
+            wasFFmpegRunning = true
+        } else if (wasFFmpegRunning) {
+            wasFFmpegRunning = false
+            android.widget.Toast.makeText(context, "Media processing complete!", android.widget.Toast.LENGTH_SHORT).show()
             if (initialUris.isNotEmpty()) {
                 (context as? android.app.Activity)?.finish()
             }

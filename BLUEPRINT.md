@@ -138,10 +138,23 @@
 * Audio playback UI with left/right timeline trimming dials.
 
 ### Phase 10: Video Editor (The FFmpeg Bridge)
-*Target: The heavy-lifting render engine.*
-* The Editor UI layout (Estimated size, Resolution/FPS/Quality sliders, specific tool toggles).
-* FFmpeg command construction logic.
-* The OS-Survival Hook: Triggering FFmpeg inside a Foreground Service with a persistent blocking "Please wait..." UI, logging stdout to the Log Keeper, writing to `cacheDir`, and streaming via `ContentResolver` to the SAF Output URI.
+*Target: Stateless, extremely lightweight video manipulation and rendering.*
+* **UI Structure & Layout**: 
+  - *Main UI*: ExoPlayer preview window (top), scrollable timeline/progress bar (bottom), and a scrollable bottom row of tool icons (Trim, Speed, Crop, Audio/Volume, Aspect Ratio, Rotate, Captions) matching an audio-editor aesthetic. Top bar includes Undo, Redo, Save, and Play/Preview buttons.
+  - *Partial Tool UIs*: Tapping any tool opens a dedicated partial UI panel at the bottom, substituting the main tools row. Edits are non-destructive and saved to a lightweight in-memory parameter object (e.g., `trim_start: 12.0`, `mute: true`) when accepted.
+  - *Live Preview*: The ExoPlayer in the Main UI dynamically simulates parameters in the lightweight data object (clamping playback to trims, applying volume changes) prior to the hard rendering step.
+* **Included Tools**:
+  - *Trimmer*: Double-dial UI similar to the Audio Editor. Supports "Normal" (keep inside) and "Cut" (remove middle part). No split required.
+  - *Adjustments*: Speed, Crop, Aspect Ratio, Volume/Audio controls, Rotate, and Captions.
+* **Export & Quality Control Panel**: 
+  - Accessed via the "SAVE" button. Opens a localized panel for rendering options and compression.
+  - Sliders for Resolution, Frame Rate, and Quality (Low/Medium/High). Continually displays an "Estimated file size".
+  - Incorporates a **Converter Dropdown** menu (Default: `.mp4`, with `.mp3` for extracting audio-only, or converting `.webp` / `.gif` into video).
+  - *Batch Mode/Direct Send*: When multiple video files are shared externally to the app, the Editor UI is bypassed. The app *only* presents this Quality/Converter panel alongside a progress bar to process them one-by-one sequentially.
+* **FFmpeg Logic & Output**:
+  - Output files preserve original formats by appending the execution setup date (e.g., `filename_YYYYMMDD_HHMM.ext`), storing safely directly to the SAF chosen Output Folder.
+  - Generates the FFmpeg command based exclusively on the in-memory parameter object.
+  - Runs in a Foreground Service to survive OS background kills with a blocking "Please wait..." UI when active.
 
 ### Phase 11: Polish & Deactivation
 *Target: Releasing the app.*
