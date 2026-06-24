@@ -61,7 +61,7 @@ secrets {
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
-  implementation(files("libs/ffmpeg-kit.aar"))
+  implementation(libs.ffmpeg.kit.full)
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)
@@ -89,7 +89,6 @@ dependencies {
   implementation(libs.androidx.media3.session)
   implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.transformer)
-  // implementation(libs.ffmpeg.kit.full)
   implementation(libs.coil.compose)
   implementation(libs.coil.video)
   implementation(libs.converter.moshi)
