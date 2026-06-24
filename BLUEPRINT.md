@@ -208,6 +208,10 @@
   - Integrated `setPictureInPictureParams()` native hooks for Android 12+ (S) ensuring the application automatically enters PiP layout transitions on home swipe or task backgrounding.
   - Hooked playback state tracking (`currentPosition`, `duration`) into `SettingsManager` to remember positions and mark videos as 'Seen' upon 99% completion.
 
+* **Phase 10 Update**:
+  - Implemented 360p as the lowest resolution quality option (640x360) in the `VideoEditorScreen` export dialog.
+  - Aligned video and audio editor exports to cleanly stream and save finished output files directly into the SAF-authorized directory chosen in Settings, using the shared `SettingsManager` output configuration.
+
 * **Phase 6 (Current / Pending)**:
   - Implement full Player UI (transparent black overlays for out-of-the-way controls). (Partially complete)
   - Implement gesture controls for brightness, volume, and playback seeking. (Partially complete)

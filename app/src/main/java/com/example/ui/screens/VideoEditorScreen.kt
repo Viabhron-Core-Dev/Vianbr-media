@@ -653,7 +653,7 @@ fun VideoEditorScreen(
 
         // Export Panel Overlay
         var format by remember { mutableStateOf("mp4") }
-        var resolutionIndex by remember { mutableIntStateOf(1) } // 0 -> 480p, 1 -> 720p, 2 -> 1080p
+        var resolutionIndex by remember { mutableIntStateOf(2) } // 0 -> 360p, 1 -> 480p, 2 -> 720p, 3 -> 1080p
         var fpsIndex by remember { mutableIntStateOf(1) } // 0 -> 24fps, 1 -> 30fps, 2 -> 60fps
         var quality by remember { mutableFloatStateOf(0.7f) }
 
@@ -669,13 +669,14 @@ fun VideoEditorScreen(
                         Slider(
                             value = resolutionIndex.toFloat(),
                             onValueChange = { resolutionIndex = it.toInt() },
-                            valueRange = 0f..2f,
-                            steps = 1
+                            valueRange = 0f..3f,
+                            steps = 2
                         )
                         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("480p", style = if (resolutionIndex == 0) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
-                            Text("720p", style = if (resolutionIndex == 1) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
-                            Text("1080p", style = if (resolutionIndex == 2) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("360p", style = if (resolutionIndex == 0) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("480p", style = if (resolutionIndex == 1) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("720p", style = if (resolutionIndex == 2) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("1080p", style = if (resolutionIndex == 3) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("Frame Rate")
@@ -708,8 +709,9 @@ fun VideoEditorScreen(
                         
                         // 1. Determine parameters
                         val res = when (resolutionIndex) {
-                            0 -> "854x480"
-                            1 -> "1280x720"
+                            0 -> "640x360"
+                            1 -> "854x480"
+                            2 -> "1280x720"
                             else -> "1920x1080"
                         }
                         val fps = when (fpsIndex) {
