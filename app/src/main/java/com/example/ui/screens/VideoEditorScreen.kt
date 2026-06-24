@@ -656,6 +656,33 @@ fun VideoEditorScreen(
         var resolutionIndex by remember { mutableIntStateOf(2) } // 0 -> 360p, 1 -> 480p, 2 -> 720p, 3 -> 1080p
         var fpsIndex by remember { mutableIntStateOf(1) } // 0 -> 24fps, 1 -> 30fps, 2 -> 60fps
         var quality by remember { mutableFloatStateOf(0.7f) }
+        var fastExport by remember { mutableStateOf(true) }
+
+        // Calculate estimated size
+        val baseKbps = when (resolutionIndex) {
+            0 -> 500f
+            1 -> 1000f
+            2 -> 2500f
+            else -> 5000f
+        }
+        val fpsMult = when(fpsIndex) {
+            0 -> 0.8f
+            1 -> 1.0f
+            else -> 1.5f
+        }
+        val qualityMult = 0.5f + (quality * 1.0f)
+        val estimatedKbps = baseKbps * fpsMult * qualityMult
+        
+        val effectiveStartMs = editState.trimStartMs.coerceAtLeast(0L)
+        val effectiveEndMs = if (editState.trimEndMs > 0L) editState.trimEndMs else durationMs
+        val trimmedDurationMs = if (editState.isCutMode) {
+            durationMs - (effectiveEndMs - effectiveStartMs).coerceAtLeast(0L)
+        } else {
+            (effectiveEndMs - effectiveStartMs).coerceAtLeast(0L)
+        }
+        val durationSec = trimmedDurationMs / 1000f
+        val estimatedSizeMb = (estimatedKbps * durationSec) / 8192f
+        val estimatedSizeStr = String.format(java.util.Locale.US, "%.1f", estimatedSizeMb)
 
         if (showExportPanel) {
             AlertDialog(
@@ -663,7 +690,7 @@ fun VideoEditorScreen(
                 title = { Text("Export & Quality Control") },
                 text = {
                     Column {
-                        Text("Estimated file size: ~ MB", style = MaterialTheme.typography.titleMedium)
+                        Text("Estimated file size: ~$estimatedSizeStr MB", style = MaterialTheme.typography.titleMedium)
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("Resolution")
                         Slider(
@@ -694,6 +721,11 @@ fun VideoEditorScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("Quality")
                         Slider(value = quality, onValueChange = { quality = it })
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = fastExport, onCheckedChange = { fastExport = it })
+                            Text("Fast Export (ultrafast preset)")
+                        }
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("Converter Format")
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -803,14 +835,16 @@ fun VideoEditorScreen(
                         gifFilters.add("fps=$fps,scale=-1:-1:flags=lanczos")
                         val gifFilterArgs = "-vf \"${gifFilters.joinToString(",")}\""
 
+                        val presetArg = if (fastExport) "ultrafast" else "medium"
+
                         val cmd = when (format) {
-                            "mp4" -> "-y $trimArgs -i %INPUT% $videoFilterArgs $audioFilterArgs -s $res -r $fps -vcodec libx264 -crf $crf -preset fast %OUTPUT%"
+                            "mp4" -> "-y $trimArgs -i %INPUT% $videoFilterArgs $audioFilterArgs -s $res -r $fps -vcodec libx264 -crf $crf -preset $presetArg %OUTPUT%"
                             "mp3" -> "-y $trimArgs -i %INPUT% -vn $audioFilterArgs -acodec libmp3lame -q:a 2 %OUTPUT%"
                             "gif" -> "-y $trimArgs -i %INPUT% $gifFilterArgs -loop 0 %OUTPUT%"
                             else -> "-y -i %INPUT% %OUTPUT%"
                         }
                         
-                        LogKeeper.log("Starting Render job for video file. Output Format: $format, Resolution: $res, FPS: $fps, Quality level: $quality (CRF $crf)", "VideoEditor")
+                        LogKeeper.log("Starting Render job for video file. Output Format: $format, Resolution: $res, FPS: $fps, Preset: $presetArg, Quality level: $quality (CRF $crf)", "VideoEditor")
                         LogKeeper.log("Constructed FFmpeg Command: $cmd", "VideoEditor")
                         
                         // 3. Start FFmpegService

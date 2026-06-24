@@ -116,10 +116,19 @@ class FFmpegService : Service() {
 
             LogKeeper.log("Executing FFmpeg: $cmd", "FFmpegService")
 
+            FFmpegKitConfig.enableStatisticsCallback { statistics ->
+                val timeSec = statistics.time / 1000
+                val sizeKb = statistics.size / 1024
+                val speed = statistics.speed
+                FFmpegStatus.currentProgress = "Time: ${timeSec}s | Size: ${sizeKb}kB | Speed: ${speed}x"
+            }
+
             // Execute FFmpeg
             val session = FFmpegKit.execute(cmd)
             val returnCode = session.returnCode
             
+            FFmpegKitConfig.enableStatisticsCallback(null) // clear callback
+
             if (isCancelled) {
                 LogKeeper.log("FFmpeg processing cancelled.", "FFmpegService")
                 FFmpegKit.cancel(session.sessionId)
@@ -135,9 +144,25 @@ class FFmpegService : Service() {
             val outStream = getOutputStream(outputUriStr, fileName, getMimeType(outputExt))
             if (outStream != null) {
                 try {
+                    FFmpegStatus.currentProgress = "Saving output file..."
                     tempOutFile.inputStream().use { input ->
                         outStream.use { output ->
-                            input.copyTo(output)
+                            val buffer = ByteArray(8192)
+                            var bytesCopied: Long = 0
+                            val totalBytes = tempOutFile.length()
+                            var lastReportTime = System.currentTimeMillis()
+                            while (true) {
+                                val bytes = input.read(buffer)
+                                if (bytes < 0) break
+                                output.write(buffer, 0, bytes)
+                                bytesCopied += bytes
+                                val now = System.currentTimeMillis()
+                                if (now - lastReportTime > 500) {
+                                    val percent = if (totalBytes > 0) (bytesCopied * 100 / totalBytes).toInt() else 0
+                                    FFmpegStatus.currentProgress = "Saving: $percent%"
+                                    lastReportTime = now
+                                }
+                            }
                         }
                     }
                     LogKeeper.log("Saved to output folder: $fileName", "FFmpegService")
