@@ -69,6 +69,28 @@ class CompressionService : Service() {
         return START_NOT_STICKY
     }
 
+    private fun getOriginalFileName(uri: Uri): String {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            try {
+                contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (index != -1) {
+                            result = cursor.getString(index)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+        if (result == null) {
+            result = uri.path?.let { java.io.File(it).name }
+        }
+        return result?.substringBeforeLast(".") ?: "compressed_${System.currentTimeMillis()}"
+    }
+
     private suspend fun processImages(uris: List<String>, maxWidth: Int, maxHeight: Int) {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val settingsManager = SettingsManager.getInstance(applicationContext)
@@ -92,7 +114,9 @@ class CompressionService : Service() {
                             outBitmap = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
                         }
                     }
-                    val outStream: OutputStream? = getOutputStream(outputUriStr, "compressed_${System.currentTimeMillis()}.jpg")
+                    val origName = getOriginalFileName(uri)
+                    val fileName = "${origName}_compressed.jpg"
+                    val outStream: OutputStream? = getOutputStream(outputUriStr, fileName)
                     if (outStream != null) {
                         outBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outStream)
                         outStream.close()

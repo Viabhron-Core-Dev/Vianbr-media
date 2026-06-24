@@ -18,6 +18,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import com.arthenica.ffmpegkit.FFmpegKit
+import com.arthenica.ffmpegkit.FFmpegKitConfig
+import com.arthenica.ffmpegkit.ReturnCode
 
 object FFmpegStatus {
     var isRunning by mutableStateOf(false)
@@ -113,35 +116,22 @@ class FFmpegService : Service() {
 
             LogKeeper.log("Executing FFmpeg: $cmd", "FFmpegService")
 
-            // Simulate FFmpeg
-            for (i in 1..20) {
-                if (isCancelled) break
-                Thread.sleep(100)
-                val progressMsg = "frame=${i * 5} fps=30 q=2.0 size=${i * 128}kB time=00:00:0${i/2} bitrate=1024.0kbits/s"
-                LogKeeper.log(progressMsg, "FFmpeg")
-                FFmpegStatus.currentProgress = progressMsg
-            }
+            // Execute FFmpeg
+            val session = FFmpegKit.execute(cmd)
+            val returnCode = session.returnCode
             
             if (isCancelled) {
                 LogKeeper.log("FFmpeg processing cancelled.", "FFmpegService")
+                FFmpegKit.cancel(session.sessionId)
                 break
             }
 
-            // Simulate successful output creation by just copying input to output (for testing)
-            try {
-                tempInFile.inputStream().use { input ->
-                    tempOutFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-            } catch (e: Exception) {
-                // ignore
-            }
-
-            LogKeeper.log("FFmpeg processing succeeded.", "FFmpegService")
+            if (ReturnCode.isSuccess(returnCode)) {
+                LogKeeper.log("FFmpeg processing succeeded.", "FFmpegService")
             
             // 2. Move out to SAF output folder
-            val fileName = "edited_${System.currentTimeMillis()}.$outputExt"
+            val origName = getOriginalFileName(uri)
+            val fileName = "${origName}_edited.$outputExt"
             val outStream = getOutputStream(outputUriStr, fileName, getMimeType(outputExt))
             if (outStream != null) {
                 try {
@@ -154,6 +144,11 @@ class FFmpegService : Service() {
                 } catch (e: Exception) {
                     LogKeeper.logError("FFmpegService", "Failed to copy output file to SAF", e)
                 }
+            }
+            } else if (ReturnCode.isCancel(returnCode)) {
+                LogKeeper.log("FFmpeg processing cancelled by user.", "FFmpegService")
+            } else {
+                LogKeeper.logError("FFmpegService", "FFmpeg failed with code ${returnCode?.value ?: "null"}", Exception(session.failStackTrace))
             }
 
             // Cleanup temps
@@ -179,6 +174,28 @@ class FFmpegService : Service() {
 
     private fun getMimeType(ext: String): String {
         return android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "video/mp4"
+    }
+
+    private fun getOriginalFileName(uri: Uri): String {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            try {
+                contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (index != -1) {
+                            result = cursor.getString(index)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+        if (result == null) {
+            result = uri.path?.let { java.io.File(it).name }
+        }
+        return result?.substringBeforeLast(".") ?: "edited_${System.currentTimeMillis()}"
     }
 
     private fun getOutputStream(outputUriStr: String?, fileName: String, mimeType: String): java.io.OutputStream? {
