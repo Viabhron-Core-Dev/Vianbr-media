@@ -38,6 +38,14 @@ class FFmpegService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        
+        // Cleanup orphaned temp files from previous crashed/killed sessions
+        cacheDir.listFiles()?.forEach { file ->
+            if (file.name.startsWith("ffmpeg_in_") || file.name.startsWith("ffmpeg_out_")) {
+                file.delete()
+            }
+        }
+        
         createNotificationChannel()
     }
 
