@@ -73,20 +73,6 @@ class MainActivity : ComponentActivity() {
     if (requiredPermissions.isNotEmpty()) {
         requestPermissions(requiredPermissions.toTypedArray(), 100)
     }
-    
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-        if (!android.os.Environment.isExternalStorageManager()) {
-            try {
-                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                intent.addCategory("android.intent.category.DEFAULT")
-                intent.data = android.net.Uri.parse(String.format("package:%s", packageName))
-                startActivity(intent)
-            } catch (e: Exception) {
-                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                startActivity(intent)
-            }
-        }
-    }
 
     LogKeeper.init(this)
     enableEdgeToEdge()
