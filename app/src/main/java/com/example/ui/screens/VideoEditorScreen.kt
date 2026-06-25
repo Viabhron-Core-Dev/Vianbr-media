@@ -191,7 +191,7 @@ fun VideoEditorScreen(
                     factory = { ctx ->
                         PlayerView(ctx).apply {
                             player = exoPlayer
-                            useController = false
+                            useController = true
                         }
                     },
                     update = { view ->

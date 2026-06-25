@@ -250,16 +250,20 @@ fun PlayerScreen(
     val decodedUriString = remember(uriString) { String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)) }
     val decodedUri = remember(uriString) { Uri.parse(decodedUriString) }
 
-    LaunchedEffect(uriString) {
+    DisposableEffect(uriString) {
         val settingsManager = com.example.data.SettingsManager.getInstance(context)
         com.example.LogKeeper.log("Starting player for $decodedUri", "PlayerScreen")
         val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         
+        var mainListener: androidx.media3.common.Player.Listener? = null
+        var pipListener: androidx.media3.common.Player.Listener? = null
+
         controllerFuture.addListener({
             val controller = controllerFuture.get()
             mediaController = controller
-            controller.addListener(object : androidx.media3.common.Player.Listener {
+            
+            mainListener = object : androidx.media3.common.Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
                         val currentMode = controller.repeatMode
@@ -281,7 +285,9 @@ fun PlayerScreen(
                         }
                     }
                 }
-            })
+            }
+            controller.addListener(mainListener!!)
+            
             if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
                 // Try to find the folder this item belongs to
                 val mediaViewModel: com.example.ui.screens.MediaViewModel = androidx.lifecycle.ViewModelProvider(context.findActivity() as androidx.activity.ComponentActivity)[com.example.ui.screens.MediaViewModel::class.java]
@@ -315,7 +321,7 @@ fun PlayerScreen(
             
             controller.play()
             
-            val listener = object : androidx.media3.common.Player.Listener {
+            pipListener = object : androidx.media3.common.Player.Listener {
                 override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         try {
@@ -335,7 +341,7 @@ fun PlayerScreen(
                     }
                 }
             }
-            controller.addListener(listener)
+            controller.addListener(pipListener!!)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 context.findActivity()?.setPictureInPictureParams(
@@ -345,6 +351,15 @@ fun PlayerScreen(
                 )
             }
         }, ContextCompat.getMainExecutor(context))
+        
+        onDispose {
+            try {
+                val controller = controllerFuture.get()
+                mainListener?.let { controller.removeListener(it) }
+                pipListener?.let { controller.removeListener(it) }
+            } catch (e: Exception) {}
+            MediaController.releaseFuture(controllerFuture)
+        }
     }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current

@@ -269,13 +269,23 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
                 androidx.compose.foundation.layout.Column {
                     val total = com.example.service.CompressionStatus.totalFiles
                     val current = com.example.service.CompressionStatus.currentFile
-                    val progressRatio = if (total > 0) current.toFloat() / total else 0f
-                    androidx.compose.material3.LinearProgressIndicator(
-                        progress = { progressRatio },
-                        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
-                    )
+                    if (total > 1) {
+                        val progressRatio = if (total > 0) current.toFloat() / total else 0f
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { progressRatio },
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        androidx.compose.material3.LinearProgressIndicator(
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                        )
+                    }
                     androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
-                    androidx.compose.material3.Text("$current / $total files processed", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                    if (total > 1) {
+                        androidx.compose.material3.Text("$current / $total files processed", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                    } else {
+                        androidx.compose.material3.Text("Processing file...", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                    }
                 }
             },
             confirmButton = {}
@@ -294,15 +304,35 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
                 androidx.compose.foundation.layout.Column {
                     val total = com.example.service.FFmpegStatus.totalFiles
                     val current = com.example.service.FFmpegStatus.currentFile
-                    val progressRatio = if (total > 0) current.toFloat() / total else 0f
-                    androidx.compose.material3.LinearProgressIndicator(
-                        progress = { progressRatio },
-                        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
-                    )
+                    val statusText = com.example.service.FFmpegStatus.currentProgress
+                    var parsedProgress: Float? = null
+                    if (total > 1) {
+                        parsedProgress = if (total > 0) current.toFloat() / total else 0f
+                    }
+                    if (statusText.startsWith("Saving: ") && statusText.contains("%")) {
+                        val pctStr = statusText.substringAfter("Saving: ").substringBefore("%").trim()
+                        val pct = pctStr.toFloatOrNull()
+                        if (pct != null) {
+                            parsedProgress = pct / 100f
+                        }
+                    }
+                    
+                    if (parsedProgress != null) {
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { parsedProgress },
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        androidx.compose.material3.LinearProgressIndicator(
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                        )
+                    }
                     androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
-                    androidx.compose.material3.Text("$current / $total files processed", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(4.dp))
-                    androidx.compose.material3.Text(com.example.service.FFmpegStatus.currentProgress, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    if (total > 1) {
+                        androidx.compose.material3.Text("$current / $total files processed", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(4.dp))
+                    }
+                    androidx.compose.material3.Text(statusText, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             },
             confirmButton = {},
