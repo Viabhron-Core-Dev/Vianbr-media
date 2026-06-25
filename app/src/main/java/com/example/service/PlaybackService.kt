@@ -13,6 +13,7 @@ import android.os.Looper
 class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private var exoPlayer: ExoPlayer? = null
+    private var loudnessEnhancer: android.media.audiofx.LoudnessEnhancer? = null
     private val inactivityHandler = Handler(Looper.getMainLooper())
     private val INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000L // 5 mins
 
@@ -78,6 +79,13 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         })
+        
+        exoPlayer?.audioSessionId?.let { sessionId ->
+            if (sessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET) {
+                loudnessEnhancer = android.media.audiofx.LoudnessEnhancer(sessionId)
+                loudnessEnhancer?.enabled = false
+            }
+        }
 
         mediaSession = MediaSession.Builder(this, exoPlayer!!)
             .setCallback(object : MediaSession.Callback {
@@ -88,6 +96,7 @@ class PlaybackService : MediaSessionService() {
                     val defaultResult = super.onConnect(session, controller)
                     val customCommands = defaultResult.availableSessionCommands.buildUpon()
                         .add(androidx.media3.session.SessionCommand("ADD_SUBTITLE", android.os.Bundle.EMPTY))
+                        .add(androidx.media3.session.SessionCommand("SET_BOOST_GAIN", android.os.Bundle.EMPTY))
                         .build()
                     return MediaSession.ConnectionResult.accept(customCommands, defaultResult.availablePlayerCommands)
                 }
@@ -98,6 +107,11 @@ class PlaybackService : MediaSessionService() {
                     customCommand: androidx.media3.session.SessionCommand,
                     args: android.os.Bundle
                 ): ListenableFuture<androidx.media3.session.SessionResult> {
+                    if (customCommand.customAction == "SET_BOOST_GAIN") {
+                        val gainMb = args.getInt("gainMb", 0)
+                        setBoostGain(gainMb)
+                        return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
+                    }
                     if (customCommand.customAction == "ADD_SUBTITLE") {
                         val uriStr = args.getString("subtitle_uri")
                         if (uriStr != null) {
@@ -170,6 +184,16 @@ class PlaybackService : MediaSessionService() {
         return mediaSession
     }
 
+    fun setBoostGain(gainMb: Int) {
+        // gainMb is in millibels: 0 = off, 1000 = +10dB boost
+        if (gainMb <= 0) {
+            loudnessEnhancer?.enabled = false
+        } else {
+            loudnessEnhancer?.setTargetGain(gainMb)
+            loudnessEnhancer?.enabled = true
+        }
+    }
+
     override fun onDestroy() {
         inactivityHandler.removeCallbacksAndMessages(null)
         mediaSession?.run {
@@ -177,6 +201,8 @@ class PlaybackService : MediaSessionService() {
             release()
             mediaSession = null
         }
+        loudnessEnhancer?.release()
+        loudnessEnhancer = null
         exoPlayer = null
         super.onDestroy()
     }

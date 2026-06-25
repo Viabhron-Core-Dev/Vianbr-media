@@ -156,6 +156,7 @@ fun PlayerScreen(
     var resizeMode by remember { androidx.compose.runtime.mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
     var showBrightnessSlider by remember { mutableStateOf(false) }
     var brightnessInteractionTime by remember { mutableLongStateOf(0L) }
+    var boostGainMb by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
     // Auto-hide brightness slider after inactivity
     LaunchedEffect(showBrightnessSlider, brightnessInteractionTime) {
@@ -262,6 +263,15 @@ fun PlayerScreen(
         controllerFuture.addListener({
             val controller = controllerFuture.get()
             mediaController = controller
+            
+            val savedGain = settingsManager.boostGainMb
+            boostGainMb = savedGain
+            if (savedGain > 0) {
+                controller.sendCustomCommand(
+                    androidx.media3.session.SessionCommand("SET_BOOST_GAIN", android.os.Bundle.EMPTY),
+                    android.os.Bundle().apply { putInt("gainMb", savedGain) }
+                )
+            }
             
             mainListener = object : androidx.media3.common.Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
@@ -1051,6 +1061,28 @@ fun PlayerScreen(
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Volume Booster: " + if (boostGainMb == 0) "Off" else "+${boostGainMb / 100}dB",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Slider(
+                        value = boostGainMb.toFloat(),
+                        onValueChange = { newVal ->
+                            val newGain = newVal.toInt()
+                            boostGainMb = newGain
+                            val settings = com.example.data.SettingsManager.getInstance(context)
+                            settings.boostGainMb = newGain
+                            mediaController?.sendCustomCommand(
+                                androidx.media3.session.SessionCommand("SET_BOOST_GAIN", android.os.Bundle.EMPTY),
+                                android.os.Bundle().apply { putInt("gainMb", newGain) }
+                            )
+                        },
+                        valueRange = 0f..1500f,
+                        steps = 14
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     val currentTracks = mediaController?.currentTracks
