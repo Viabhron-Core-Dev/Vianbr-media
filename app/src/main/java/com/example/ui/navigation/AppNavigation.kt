@@ -87,8 +87,13 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
     NavHost(navController = navController, startDestination = startDest) {
         composable("welcome") {
             WelcomeScreen(
-                onNavigateToMain = {
+                onPermissionsGranted = {
                     settingsManager.hasSeenWelcome = true
+                    navController.navigate("main") {
+                        popUpTo("welcome") { inclusive = true }
+                    }
+                },
+                onSkip = {
                     navController.navigate("main") {
                         popUpTo("welcome") { inclusive = true }
                     }

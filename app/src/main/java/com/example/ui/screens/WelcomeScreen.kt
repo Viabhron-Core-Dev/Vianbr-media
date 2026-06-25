@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.example.LogKeeper
 
 @Composable
-fun WelcomeScreen(onNavigateToMain: () -> Unit) {
+fun WelcomeScreen(onPermissionsGranted: () -> Unit, onSkip: () -> Unit) {
     var permissionsGranted by remember { mutableStateOf(false) }
     
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -24,7 +24,7 @@ fun WelcomeScreen(onNavigateToMain: () -> Unit) {
         if (granted) {
             LogKeeper.log("Permissions granted by user")
             permissionsGranted = true
-            onNavigateToMain()
+            onPermissionsGranted()
         } else {
             LogKeeper.logError("Permissions", "Permissions denied by user")
         }
@@ -74,7 +74,7 @@ fun WelcomeScreen(onNavigateToMain: () -> Unit) {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        TextButton(onClick = { onNavigateToMain() }) {
+        TextButton(onClick = { onSkip() }) {
             Text("Skip for now")
         }
     }

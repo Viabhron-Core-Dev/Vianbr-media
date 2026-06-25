@@ -26,16 +26,6 @@ import com.example.ui.screens.LoggerScreen
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
-  override fun onUserLeaveHint() {
-      super.onUserLeaveHint()
-      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-          try {
-              enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().build())
-          } catch (e: Exception) {
-              // ignore if not supported
-          }
-      }
-  }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -59,20 +49,6 @@ class MainActivity : ComponentActivity() {
             .crossfade(true)
             .build()
     )
-    
-    val requiredPermissions = mutableListOf<String>()
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-        requiredPermissions.add(android.Manifest.permission.READ_MEDIA_VIDEO)
-        requiredPermissions.add(android.Manifest.permission.READ_MEDIA_AUDIO)
-        requiredPermissions.add(android.Manifest.permission.POST_NOTIFICATIONS)
-    } else {
-        requiredPermissions.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-        requiredPermissions.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-    }
-    
-    if (requiredPermissions.isNotEmpty()) {
-        requestPermissions(requiredPermissions.toTypedArray(), 100)
-    }
 
     LogKeeper.init(this)
     enableEdgeToEdge()
