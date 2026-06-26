@@ -191,6 +191,7 @@
   - Added Long-press Multi-selection mode (`isMultiSelectMode`) on Media Items leveraging `combinedClickable`.
   - Constructed the Contextual `TopAppBar` appearing dynamically during multi-selection showing total files selected (e.g. `2/10 Selected`) with Play and Add to Playlist actions.
   - Constructed a `BottomAppBar` containing file properties, renaming and deleting functions during multi-selection mode.
+  - Added an Edit action in the `BottomAppBar` during single-item multi-selection mode, routing to the appropriate editor (Audio Trimmer, Video Editor, or Photo Editor) based on the media type.
   - Integrated `coil` and `coil-video` with `VideoFrameDecoder` to display real video thumbnail frame extracts inside media item cards.
   - Forced default Light Theme for clean MX Player aesthetic.
   - Added programmatic tagging framework (`PlaybackTag`: `NEW`, `UNSEEN`, `SEEN`) where media < 15 days old receives a `NEW` badge overlaid on thumbnails, dynamically formatting list item typography to represent its state.

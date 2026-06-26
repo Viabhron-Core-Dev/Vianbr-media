@@ -114,6 +114,10 @@ class SettingsManager private constructor(context: Context) {
         get() = prefs.getInt("boost_gain_mb", 0)
         set(value) = prefs.edit().putInt("boost_gain_mb", value).apply()
 
+    var defaultAudioBackgroundPlay: Boolean
+        get() = prefs.getBoolean("default_audio_background_play", true)
+        set(value) = prefs.edit().putBoolean("default_audio_background_play", value).apply()
+
     companion object {
         @Volatile
         private var instance: SettingsManager? = null

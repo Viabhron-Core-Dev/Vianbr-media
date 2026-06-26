@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -790,15 +792,25 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
             Box(
                 modifier = Modifier
                     .size(80.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(Color(0xFF1565C0), Color(0xFF0D47A1))
+                        )
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.Folder,
                     contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    modifier = Modifier.size(52.dp),
+                    tint = Color.White.copy(alpha = 0.15f)
+                )
+                Icon(
+                    imageVector = Icons.Filled.Folder,
+                    contentDescription = null,
+                    modifier = Modifier.size(38.dp).offset(y = 4.dp),
+                    tint = Color(0xFF90CAF9)
                 )
                 if (folder.mediaItems.any { it.tag == com.example.data.PlaybackTag.NEW }) {
                     Box(modifier = Modifier.align(Alignment.TopStart).padding(4.dp).background(Color(0xFFE53935), RoundedCornerShape(4.dp))) {

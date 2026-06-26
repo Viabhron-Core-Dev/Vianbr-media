@@ -1,24 +1,25 @@
 package com.example.ui.screens
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.example.data.SettingsManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerSettingsScreen(
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    var defaultAudioBackgroundPlay by remember { mutableStateOf(settingsManager.defaultAudioBackgroundPlay) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -35,8 +36,31 @@ fun PlayerSettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .padding(16.dp)
         ) {
-            // Basic settings representation
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Background Audio Play",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "Play audio files in the background by default",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = defaultAudioBackgroundPlay,
+                    onCheckedChange = { 
+                        defaultAudioBackgroundPlay = it
+                        settingsManager.defaultAudioBackgroundPlay = it
+                    }
+                )
+            }
         }
     }
 }

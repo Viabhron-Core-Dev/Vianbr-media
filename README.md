@@ -1,21 +1,25 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Vianbr Media
 
-# Run and deploy your AI Studio app
+A video player, audio player, photo editor, video editor, and batch media compressor for Android.
 
-This contains everything you need to run your app locally.
+Built entirely on a low-end Android phone (3GB RAM) with no laptop or desktop.
 
-View your app in AI Studio: https://ai.studio/apps/ab5626ad-ae3a-4542-8149-04ddf760e250
+## How this was built
 
-## Run Locally
+- **Google AI Studio** — code generation and iteration
+- **GitHub Actions** — APK compilation pipeline (no Android Studio needed)
+- **Claude (Anthropic)** — architecture advice, code auditing, debugging direction
+- **GitHub** — version control and source of truth
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+No Android Studio. No laptop. No USB debugging. Every build was compiled in the cloud and installed directly on device.
 
+## Building the APK
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+The APK is built automatically via GitHub Actions on every push to `main`.
+
+Go to the **Actions** tab → select the latest workflow run → download the APK from the Artifacts section.
+
+## Requirements
+
+- Android 8.0 (API 26) or higher
+- Storage permission granted on first launch

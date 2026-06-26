@@ -169,6 +169,24 @@ fun PlayerScreen(
     var activeGesture by remember { mutableStateOf(GestureType.NONE) }
     var gestureText by remember { mutableStateOf("") }
     var gestureVolumeRatio by remember { mutableFloatStateOf(0f) }
+    var seekOffsetSec by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var showPlayPauseFlash by remember { mutableStateOf(false) }
+    var flashIsPlaying by remember { mutableStateOf(false) }
+    var isPlaying by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(showPlayPauseFlash) {
+        if (showPlayPauseFlash) {
+            kotlinx.coroutines.delay(600)
+            showPlayPauseFlash = false
+        }
+    }
+    
+    LaunchedEffect(mediaController) {
+        while (true) {
+            isPlaying = mediaController?.isPlaying == true
+            kotlinx.coroutines.delay(300)
+        }
+    }
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -243,13 +261,22 @@ fun PlayerScreen(
         if (!showControls) {
             showBrightnessSlider = false
         } else {
-            delay(5000)
+            kotlinx.coroutines.delay(4000)
             showControls = false
         }
     }
 
     val decodedUriString = remember(uriString) { String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)) }
     val decodedUri = remember(uriString) { Uri.parse(decodedUriString) }
+
+    LaunchedEffect(decodedUri) {
+        val mimeType = context.contentResolver.getType(decodedUri)
+        val isAudio = mimeType?.startsWith("audio/") == true
+        if (isAudio) {
+            val settingsManager = com.example.data.SettingsManager.getInstance(context)
+            backgroundPlayEnabled = settingsManager.defaultAudioBackgroundPlay
+        }
+    }
 
     DisposableEffect(uriString) {
         val settingsManager = com.example.data.SettingsManager.getInstance(context)
@@ -452,6 +479,8 @@ fun PlayerScreen(
                             controller.play()
                             showControls = false
                         }
+                        flashIsPlaying = controller.isPlaying
+                        showPlayPauseFlash = true
                     }
                 },
                 onTap = {
@@ -512,6 +541,11 @@ fun PlayerScreen(
                             
                             when (currentGesture) {
                                 GestureType.SEEK -> {
+                                    val currentDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
+                                    val seekOffsetMs = (dragDistanceX / size.width) * 120_000
+                                    val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, currentDuration)
+                                    mediaController?.seekTo(targetPos)
+                                    seekOffsetSec = ((dragDistanceX / size.width) * 120).toInt()
                                     change.consume()
                                 }
                                 GestureType.VOLUME -> {
@@ -561,6 +595,20 @@ fun PlayerScreen(
             }
         )
 
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showPlayPauseFlash,
+            enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(100)),
+            exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(300)),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Icon(
+                imageVector = if (flashIsPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.85f),
+                modifier = Modifier.size(72.dp)
+            )
+        }
+
         if (activeGesture != GestureType.NONE && !isInPipMode) {
             if (activeGesture == GestureType.VOLUME) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
@@ -589,6 +637,17 @@ fun PlayerScreen(
                         Icon(androidx.compose.material.icons.Icons.Filled.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
                     }
                 }
+            } else if (activeGesture == GestureType.SEEK) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    val sign = if (seekOffsetSec >= 0) "+" else ""
+                    Text(
+                        text = "$sign${seekOffsetSec}s",
+                        color = Color.White,
+                        fontSize = 28.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)
+                    )
+                }
             } else if (gestureText.isNotEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
@@ -604,8 +663,8 @@ fun PlayerScreen(
 
         androidx.compose.animation.AnimatedVisibility(
             visible = !showControls && !isInPipMode,
-            enter = androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.fadeOut(),
+            enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(200)),
+            exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200)),
             modifier = Modifier.align(Alignment.TopEnd)
         ) {
             Box(
@@ -638,8 +697,8 @@ fun PlayerScreen(
 
         androidx.compose.animation.AnimatedVisibility(
             visible = showControls && !isInPipMode,
-            enter = androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.fadeOut(),
+            enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(200)),
+            exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200)),
             modifier = Modifier.fillMaxSize()
         ) {
             if (isLocked) {
@@ -996,12 +1055,14 @@ fun PlayerScreen(
                                         mediaController?.let { controller ->
                                             if (controller.isPlaying) controller.pause() else controller.play()
                                         }
-                                    }
+                                    },
+                                    modifier = Modifier.size(56.dp)
                                 ) {
                                     Icon(
-                                        if (mediaController?.isPlaying == true) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                                         contentDescription = "Play/Pause",
-                                        tint = Color.White
+                                        tint = Color.White,
+                                        modifier = Modifier.size(36.dp)
                                     )
                                 }
                                 IconButton(onClick = { mediaController?.seekToNext() }) {
