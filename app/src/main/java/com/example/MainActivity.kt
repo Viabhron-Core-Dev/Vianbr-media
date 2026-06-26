@@ -51,7 +51,16 @@ class MainActivity : ComponentActivity() {
     )
 
     LogKeeper.init(this)
-    enableEdgeToEdge()
+    enableEdgeToEdge(
+        statusBarStyle = androidx.activity.SystemBarStyle.light(
+            android.graphics.Color.TRANSPARENT,
+            android.graphics.Color.TRANSPARENT
+        ),
+        navigationBarStyle = androidx.activity.SystemBarStyle.light(
+            android.graphics.Color.TRANSPARENT,
+            android.graphics.Color.TRANSPARENT
+        )
+    )
     setContent {
       MyApplicationTheme {
         var isLoggerOpen by remember { mutableStateOf(false) }

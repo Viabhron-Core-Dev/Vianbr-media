@@ -165,7 +165,7 @@ fun VideoEditorScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .background(Color.Black),
+                    .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {
                 val ratio = if (editState.cropRect == "Center Crop" && currentTool != VideoEditorTool.CROP) {

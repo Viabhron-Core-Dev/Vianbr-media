@@ -175,7 +175,7 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(Color.Black)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             if (imageBitmap != null) {
                 var dragStart by remember { mutableStateOf(Offset.Zero) }

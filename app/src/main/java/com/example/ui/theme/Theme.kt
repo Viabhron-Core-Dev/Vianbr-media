@@ -15,19 +15,24 @@ private val DarkColorScheme =
 
 private val LightColorScheme =
   lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = LightBluePrimary,
+    onPrimary = LightBlueOnPrimary,
+    primaryContainer = LightBluePrimaryContainer,
+    onPrimaryContainer = LightBlueOnPrimaryContainer,
+    secondary = LightBlueSecondary,
+    onSecondary = LightBlueOnSecondary,
+    secondaryContainer = LightBlueSecondaryContainer,
+    onSecondaryContainer = LightBlueOnSecondaryContainer,
+    tertiary = LightBlueTertiary,
+    onTertiary = LightBlueOnTertiary,
+    tertiaryContainer = LightBlueTertiaryContainer,
+    onTertiaryContainer = LightBlueOnTertiaryContainer,
+    background = LightBlueBackground,
+    onBackground = LightBlueOnBackground,
+    surface = LightBlueSurface,
+    onSurface = LightBlueOnSurface,
+    surfaceVariant = LightBlueSurfaceVariant,
+    onSurfaceVariant = LightBlueOnSurfaceVariant
   )
 
 @Composable

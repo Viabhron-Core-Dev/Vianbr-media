@@ -108,6 +108,16 @@ fun MainScreen(
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
 
+    val deleteLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
+            selectedMediaItems.clear()
+            showDeleteConfirmDialog = false
+        }
+    }
+
     BackHandler(enabled = isSearchActive) {
         isSearchActive = false
         searchQuery = ""
@@ -650,28 +660,66 @@ fun MainScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
+                    val mediaStoreUris = selectedMediaItems.map { it.uri }.filter { it.authority == "media" }
+                    val otherUris = selectedMediaItems.map { it.uri }.filter { it.authority != "media" }
+
                     coroutineScope.launch {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            selectedMediaItems.forEach { media ->
-                                try {
-                                    val uri = media.uri
-                                    if (uri.scheme == "file") {
-                                        val file = java.io.File(uri.path!!)
-                                        if (file.exists()) file.delete()
-                                    } else {
-                                        context.contentResolver.delete(uri, null, null)
+                        if (otherUris.isNotEmpty()) {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                selectedMediaItems.filter { it.uri.authority != "media" }.forEach { media ->
+                                    try {
+                                        val uri = media.uri
+                                        if (uri.scheme == "file") {
+                                            val file = java.io.File(uri.path!!)
+                                            if (file.exists()) file.delete()
+                                        } else if (uri.authority?.contains("documents") == true) {
+                                            android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri)
+                                        }
+                                        val imageLoader = context.imageLoader
+                                        imageLoader.diskCache?.remove(uri.toString())
+                                        imageLoader.memoryCache?.remove(coil.memory.MemoryCache.Key(uri.toString()))
+                                    } catch (e: Exception) {
+                                        com.example.LogKeeper.logError("MainScreen", "Error deleting file ${media.name}", e)
                                     }
-                                    val imageLoader = context.imageLoader
-                                    imageLoader.diskCache?.remove(uri.toString())
-                                    imageLoader.memoryCache?.remove(coil.memory.MemoryCache.Key(uri.toString()))
-                                } catch (e: Exception) {
-                                    com.example.LogKeeper.logError("MainScreen", "Error deleting file ${media.name}", e)
                                 }
                             }
                         }
-                        selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
-                        selectedMediaItems.clear()
-                        showDeleteConfirmDialog = false
+
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && mediaStoreUris.isNotEmpty()) {
+                            try {
+                                val pendingIntent = android.provider.MediaStore.createDeleteRequest(context.contentResolver, mediaStoreUris)
+                                deleteLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(pendingIntent.intentSender).build())
+                            } catch (e: Exception) {
+                                com.example.LogKeeper.logError("MainScreen", "Error launching delete request", e)
+                            }
+                        } else if (mediaStoreUris.isNotEmpty()) {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                selectedMediaItems.filter { it.uri.authority == "media" }.forEach { media ->
+                                    try {
+                                        context.contentResolver.delete(media.uri, null, null)
+                                        val imageLoader = context.imageLoader
+                                        imageLoader.diskCache?.remove(media.uri.toString())
+                                        imageLoader.memoryCache?.remove(coil.memory.MemoryCache.Key(media.uri.toString()))
+                                    } catch (se: SecurityException) {
+                                        if (android.os.Build.VERSION.SDK_INT == android.os.Build.VERSION_CODES.Q) {
+                                            val recoverable = se as? android.app.RecoverableSecurityException
+                                            recoverable?.userAction?.actionIntent?.intentSender?.let { sender ->
+                                                deleteLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        com.example.LogKeeper.logError("MainScreen", "Error deleting file ${media.name}", e)
+                                    }
+                                }
+                            }
+                            selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
+                            selectedMediaItems.clear()
+                            showDeleteConfirmDialog = false
+                        } else {
+                            selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
+                            selectedMediaItems.clear()
+                            showDeleteConfirmDialog = false
+                        }
                     }
                 }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
@@ -791,29 +839,17 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
         ) {
             Box(
                 modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Color(0xFF1565C0), Color(0xFF0D47A1))
-                        )
-                    ),
+                    .size(80.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.Folder,
                     contentDescription = null,
-                    modifier = Modifier.size(52.dp),
-                    tint = Color.White.copy(alpha = 0.15f)
-                )
-                Icon(
-                    imageVector = Icons.Filled.Folder,
-                    contentDescription = null,
-                    modifier = Modifier.size(38.dp).offset(y = 4.dp),
-                    tint = Color(0xFF90CAF9)
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
                 if (folder.mediaItems.any { it.tag == com.example.data.PlaybackTag.NEW }) {
-                    Box(modifier = Modifier.align(Alignment.TopStart).padding(4.dp).background(Color(0xFFE53935), RoundedCornerShape(4.dp))) {
+                    Box(modifier = Modifier.align(Alignment.TopStart).padding(8.dp).background(Color(0xFFE53935), RoundedCornerShape(4.dp))) {
                         Text("NEW", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                     }
                 }

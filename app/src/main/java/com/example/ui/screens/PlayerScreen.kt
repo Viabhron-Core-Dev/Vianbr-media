@@ -466,7 +466,7 @@ fun PlayerScreen(
 
     Box(modifier = Modifier
         .fillMaxSize()
-        .background(Color.Black)
+        .background(MaterialTheme.colorScheme.background)
         .pointerInput(mediaController, isLocked) {
             detectTapGestures(
                 onDoubleTap = {
