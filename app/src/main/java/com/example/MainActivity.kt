@@ -91,8 +91,8 @@ class MainActivity : ComponentActivity() {
               }
               
               val forceAction = intent?.component?.className?.let { className ->
-                  if (className.endsWith("PlayMediaActivity")) "play"
-                  else if (className.endsWith("EditMediaActivity")) "edit"
+                  if (className.contains("PlayMediaActivity")) "play"
+                  else if (className.contains("EditMediaActivity")) "edit"
                   else null
               }
               

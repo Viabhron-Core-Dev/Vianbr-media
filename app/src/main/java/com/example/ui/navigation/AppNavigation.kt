@@ -48,8 +48,8 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
                 val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                 if (isAudio) "audio_trimmer/$encodedUri"
                 else if (isVideo) "video_editor/$encodedUri"
-                else if (isImage && !isAnimatedImage) "photo_editor/$encodedUri"
-                else "player/$encodedUri"
+                else if (isAnimatedImage) "video_editor/$encodedUri"
+                else "photo_editor/$encodedUri"
             } else if (isImage) {
                 if (initialUris.size == 1 && !isAnimatedImage) {
                     val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
