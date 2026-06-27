@@ -115,11 +115,38 @@ class FFmpegService : Service() {
                 continue
             }
 
+            // Pre-convert animated WebP to GIF for FFmpeg compatibility
+            val actualInputFile = if (tempInFile.extension.lowercase() == "webp") {
+                val tempGifFile = java.io.File(cacheDir, "ffmpeg_in_${System.currentTimeMillis()}_converted.gif")
+                var converted = false
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    try {
+                        val drawable = android.graphics.ImageDecoder.decodeDrawable(
+                            android.graphics.ImageDecoder.createSource(tempInFile)
+                        )
+                        if (drawable is android.graphics.drawable.AnimatedImageDrawable) {
+                            // Use FFmpeg to convert webp to gif since ImageDecoder gives us frames
+                            val convertCmd = "-y -i '${tempInFile.absolutePath}' '${tempGifFile.absolutePath}'"
+                            val convertSession = com.arthenica.ffmpegkit.FFmpegKit.execute(convertCmd)
+                            if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(convertSession.returnCode)) {
+                                converted = true
+                                LogKeeper.log("Pre-converted animated WebP to GIF for FFmpeg", "FFmpegService")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        LogKeeper.logError("FFmpegService", "WebP pre-conversion failed", e)
+                    }
+                }
+                if (converted) tempGifFile else tempInFile
+            } else {
+                tempInFile
+            }
+
             val tempOutFile = java.io.File(cacheDir, "ffmpeg_out_${System.currentTimeMillis()}.$outputExt")
             
             // Replace placeholders in command
             val cmd = commandTemplate
-                .replace("%INPUT%", "'${tempInFile.absolutePath}'")
+                .replace("%INPUT%", "'${actualInputFile.absolutePath}'")
                 .replace("%OUTPUT%", "'${tempOutFile.absolutePath}'")
 
             LogKeeper.log("Executing FFmpeg: $cmd", "FFmpegService")
@@ -186,6 +213,7 @@ class FFmpegService : Service() {
 
             // Cleanup temps
             if (tempInFile.exists()) tempInFile.delete()
+            if (actualInputFile != tempInFile && actualInputFile.exists()) actualInputFile.delete()
             if (tempOutFile.exists()) tempOutFile.delete()
 
             count++
