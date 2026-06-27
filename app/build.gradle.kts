@@ -91,6 +91,7 @@ dependencies {
   implementation(libs.androidx.media3.transformer)
   implementation(libs.coil.compose)
   implementation(libs.coil.video)
+  implementation(libs.coil.gif)
   // implementation(libs.firebase.ai)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
