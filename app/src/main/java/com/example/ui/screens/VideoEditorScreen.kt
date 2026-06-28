@@ -36,6 +36,7 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
 import androidx.compose.ui.layout.ContentScale
 
 import com.example.LogKeeper
@@ -204,7 +205,12 @@ fun VideoEditorScreen(
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(uri)
-                            .decoderFactory(coil.decode.GifDecoder.Factory())
+                            .decoderFactory(
+                                if (mimeType == "image/webp")
+                                    coil.decode.ImageDecoderDecoder.Factory()
+                                else
+                                    coil.decode.GifDecoder.Factory()
+                            )
                             .build(),
                         contentDescription = null,
                         modifier = Modifier
