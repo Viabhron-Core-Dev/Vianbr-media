@@ -102,8 +102,9 @@ fun VideoEditorScreen(
                                 android.graphics.ImageDecoder.createSource(inputFile)
                             )
                             if (drawable is android.graphics.drawable.AnimatedImageDrawable) {
+                                drawable.repeatCount = 0
                                 drawable.start()
-                                while (frameCount < 300) {
+                                while (frameCount < 100) {
                                     val bmp = android.graphics.Bitmap.createBitmap(
                                         drawable.intrinsicWidth.coerceAtLeast(1),
                                         drawable.intrinsicHeight.coerceAtLeast(1),
@@ -114,7 +115,6 @@ fun VideoEditorScreen(
                                         .outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
                                     bmp.recycle()
                                     frameCount++
-                                    Thread.sleep(100)
                                 }
                             }
                         }
@@ -140,55 +140,75 @@ fun VideoEditorScreen(
     // ExoPlayer for Live Preview
     var videoWidth by remember { mutableIntStateOf(1) }
     var videoHeight by remember { mutableIntStateOf(1) }
-    val exoPlayer = remember(uri) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(uri))
-            repeatMode = Player.REPEAT_MODE_ONE
-            prepare()
-            playWhenReady = true
-            addListener(object : Player.Listener {
-                override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                    if (videoSize.width > 0 && videoSize.height > 0) {
-                        videoWidth = videoSize.width
-                        videoHeight = videoSize.height
+    val exoPlayer = remember(effectiveUri) {
+        if (mimeType == "image/gif" || mimeType == "image/webp") {
+            if (convertedUri == null) null
+            else ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(uri))
+                repeatMode = Player.REPEAT_MODE_ONE
+                prepare()
+                playWhenReady = true
+                addListener(object : Player.Listener {
+                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                        if (videoSize.width > 0 && videoSize.height > 0) {
+                            videoWidth = videoSize.width
+                            videoHeight = videoSize.height
+                        }
                     }
-                }
-            })
+                })
+            }
+        } else {
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(uri))
+                repeatMode = Player.REPEAT_MODE_ONE
+                prepare()
+                playWhenReady = true
+                addListener(object : Player.Listener {
+                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                        if (videoSize.width > 0 && videoSize.height > 0) {
+                            videoWidth = videoSize.width
+                            videoHeight = videoSize.height
+                        }
+                    }
+                })
+            }
         }
     }
 
-    DisposableEffect(exoPlayer) {
-        LogKeeper.log("ExoPlayer initialized for video editor", "VideoEditor")
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) {
-                    val dur = exoPlayer.duration
-                    if (dur > 0) {
-                        durationMs = dur
-                        if (editState.trimEndMs == 0L) {
-                            editState = editState.copy(trimEndMs = dur)
+    if (exoPlayer != null) {
+        DisposableEffect(exoPlayer) {
+            LogKeeper.log("ExoPlayer initialized for video editor", "VideoEditor")
+            val listener = object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        val dur = exoPlayer.duration
+                        if (dur > 0) {
+                            durationMs = dur
+                            if (editState.trimEndMs == 0L) {
+                                editState = editState.copy(trimEndMs = dur)
+                            }
+                            LogKeeper.log("ExoPlayer is READY. Loaded video duration: ${formatMs(dur)}", "VideoEditor")
                         }
-                        LogKeeper.log("ExoPlayer is READY. Loaded video duration: ${formatMs(dur)}", "VideoEditor")
                     }
                 }
             }
-        }
-        exoPlayer.addListener(listener)
-        onDispose {
-            LogKeeper.log("ExoPlayer released from video editor", "VideoEditor")
-            exoPlayer.removeListener(listener)
-            exoPlayer.release()
+            exoPlayer.addListener(listener)
+            onDispose {
+                LogKeeper.log("ExoPlayer released from video editor", "VideoEditor")
+                exoPlayer.removeListener(listener)
+                exoPlayer.release()
+            }
         }
     }
 
     // Live preview updates based on edit state
     LaunchedEffect(editState.speed) {
         LogKeeper.log("Video playback speed adjusted to: ${editState.speed}x", "VideoEditor")
-        exoPlayer.setPlaybackSpeed(editState.speed)
+        exoPlayer?.setPlaybackSpeed(editState.speed)
     }
     LaunchedEffect(editState.volume) {
         LogKeeper.log("Video playback volume adjusted to: ${editState.volume * 100}%", "VideoEditor")
-        exoPlayer.volume = editState.volume
+        exoPlayer?.volume = editState.volume
     }
 
     if (isConverting) {
@@ -256,36 +276,40 @@ fun VideoEditorScreen(
                 } else {
                     Modifier.fillMaxSize()
                 }
-                AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            player = exoPlayer
-                            useController = true
-                        }
-                    },
-                    update = { view ->
-                        view.resizeMode = if (ratio != null) 3 else 0
-                        view.rotation = editState.rotateConfig.toFloat()
-                    },
-                    modifier = previewModifier.graphicsLayer {
-                        clip = true
-                        if (currentTool != VideoEditorTool.CROP && editState.cropRect == "Custom") {
-                            val cw = editState.cropRight - editState.cropLeft
-                            val ch = editState.cropBottom - editState.cropTop
-                            if (cw > 0 && ch > 0) {
-                                scaleX = 1f / cw
-                                scaleY = 1f / ch
-                                val cx = (editState.cropLeft + editState.cropRight) / 2f
-                                val cy = (editState.cropTop + editState.cropBottom) / 2f
-                                translationX = (0.5f - cx) * size.width * scaleX
-                                translationY = (0.5f - cy) * size.height * scaleY
+                if (exoPlayer != null) {
+                    AndroidView(
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                player = exoPlayer
+                                useController = true
                             }
-                        } else if (currentTool != VideoEditorTool.CROP && editState.cropRect == "Center Crop") {
-                            // Center Crop is effectively a 1:1 ratio. If they don't have aspect ratio 1:1 selected, we simulate it
-                            // by scaling the shorter dimension. Actually, ExoPlayer resizeMode handles this if we just let it.
+                        },
+                        update = { view ->
+                            view.resizeMode = if (ratio != null) 3 else 0
+                            view.rotation = editState.rotateConfig.toFloat()
+                        },
+                        modifier = previewModifier.graphicsLayer {
+                            clip = true
+                            if (currentTool != VideoEditorTool.CROP && editState.cropRect == "Custom") {
+                                val cw = editState.cropRight - editState.cropLeft
+                                val ch = editState.cropBottom - editState.cropTop
+                                if (cw > 0 && ch > 0) {
+                                    scaleX = 1f / cw
+                                    scaleY = 1f / ch
+                                    val cx = (editState.cropLeft + editState.cropRight) / 2f
+                                    val cy = (editState.cropTop + editState.cropBottom) / 2f
+                                    translationX = (0.5f - cx) * size.width * scaleX
+                                    translationY = (0.5f - cy) * size.height * scaleY
+                                }
+                            } else if (currentTool != VideoEditorTool.CROP && editState.cropRect == "Center Crop") {
+                                // Center Crop is effectively a 1:1 ratio. If they don't have aspect ratio 1:1 selected, we simulate it
+                                // by scaling the shorter dimension. Actually, ExoPlayer resizeMode handles this if we just let it.
+                            }
                         }
-                    }
-                )
+                    )
+                } else {
+                    Box(modifier = previewModifier.background(Color.Black))
+                }
                 
                 if (currentTool == VideoEditorTool.CROP && editState.cropRect == "Custom") {
                     var resizeCorner by remember { mutableIntStateOf(0) }
@@ -420,19 +444,19 @@ fun VideoEditorScreen(
                 LaunchedEffect(exoPlayer, editState.trimStartMs, editState.trimEndMs, editState.isCutMode) {
                     while (true) {
                         if (!isDragging) {
-                            currentPositionMs = exoPlayer.currentPosition
+                            currentPositionMs = exoPlayer?.currentPosition ?: 0L
                             if (!editState.isCutMode) {
                                 if (editState.trimEndMs > 0 && currentPositionMs >= editState.trimEndMs) {
-                                    exoPlayer.seekTo(editState.trimStartMs)
+                                    exoPlayer?.seekTo(editState.trimStartMs)
                                     currentPositionMs = editState.trimStartMs
                                 } else if (currentPositionMs < editState.trimStartMs) {
-                                    exoPlayer.seekTo(editState.trimStartMs)
+                                    exoPlayer?.seekTo(editState.trimStartMs)
                                     currentPositionMs = editState.trimStartMs
                                 }
                             } else {
                                 // In cut mode, we skip the middle
                                 if (currentPositionMs >= editState.trimStartMs && currentPositionMs < editState.trimEndMs) {
-                                    exoPlayer.seekTo(editState.trimEndMs)
+                                    exoPlayer?.seekTo(editState.trimEndMs)
                                     currentPositionMs = editState.trimEndMs
                                 }
                             }
@@ -446,7 +470,7 @@ fun VideoEditorScreen(
                     onValueChange = { 
                         isDragging = true
                         currentPositionMs = (it * durationMs).toLong()
-                        exoPlayer.seekTo(currentPositionMs)
+                        exoPlayer?.seekTo(currentPositionMs)
                     },
                     onValueChangeFinished = {
                         isDragging = false
