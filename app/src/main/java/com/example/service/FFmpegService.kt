@@ -115,38 +115,85 @@ class FFmpegService : Service() {
                 continue
             }
 
-            // Pre-convert animated WebP to GIF for FFmpeg compatibility
-            val actualInputFile = if (tempInFile.extension.lowercase() == "webp") {
-                val tempGifFile = java.io.File(cacheDir, "ffmpeg_in_${System.currentTimeMillis()}_converted.gif")
-                var converted = false
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    try {
-                        val drawable = android.graphics.ImageDecoder.decodeDrawable(
-                            android.graphics.ImageDecoder.createSource(tempInFile)
-                        )
-                        if (drawable is android.graphics.drawable.AnimatedImageDrawable) {
-                            // Use FFmpeg to convert webp to gif since ImageDecoder gives us frames
-                            val convertCmd = "-y -i '${tempInFile.absolutePath}' '${tempGifFile.absolutePath}'"
-                            val convertSession = com.arthenica.ffmpegkit.FFmpegKit.execute(convertCmd)
-                            if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(convertSession.returnCode)) {
-                                converted = true
-                                LogKeeper.log("Pre-converted animated WebP to GIF for FFmpeg", "FFmpegService")
+            // For animated WebP: extract frames as PNG sequence, then encode with FFmpeg
+            val actualInputFile: java.io.File
+            val pngFramesDir: java.io.File?
+            
+            if (tempInFile.extension.lowercase() == "webp" && 
+                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                
+                val framesDir = java.io.File(cacheDir, "webp_frames_${System.currentTimeMillis()}")
+                framesDir.mkdirs()
+                var frameCount = 0
+                var frameDelayMs = 100 // default 100ms per frame if unknown
+                
+                try {
+                    val source = android.graphics.ImageDecoder.createSource(tempInFile)
+                    val drawable = android.graphics.ImageDecoder.decodeDrawable(source)
+                    
+                    if (drawable is android.graphics.drawable.AnimatedImageDrawable) {
+                        drawable.start()
+                        // Extract up to 300 frames max
+                        val maxFrames = 300
+                        while (frameCount < maxFrames) {
+                            val bitmap = android.graphics.Bitmap.createBitmap(
+                                drawable.intrinsicWidth.coerceAtLeast(1),
+                                drawable.intrinsicHeight.coerceAtLeast(1),
+                                android.graphics.Bitmap.Config.ARGB_8888
+                            )
+                            val canvas = android.graphics.Canvas(bitmap)
+                            drawable.draw(canvas)
+                            val frameFile = java.io.File(framesDir, "frame_%04d.png".format(frameCount))
+                            frameFile.outputStream().use { out ->
+                                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
                             }
+                            bitmap.recycle()
+                            frameCount++
+                            // Advance one frame
+                            Thread.sleep(frameDelayMs.toLong())
                         }
-                    } catch (e: Exception) {
-                        LogKeeper.logError("FFmpegService", "WebP pre-conversion failed", e)
+                        LogKeeper.log("Extracted $frameCount frames from animated WebP", "FFmpegService")
+                    } else {
+                        // Static WebP — save single frame as PNG
+                        val bitmap = android.graphics.ImageDecoder.decodeBitmap(source)
+                        val frameFile = java.io.File(framesDir, "frame_0000.png")
+                        frameFile.outputStream().use { out ->
+                            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                        }
+                        bitmap.recycle()
+                        frameCount = 1
+                        LogKeeper.log("Extracted single frame from static WebP", "FFmpegService")
                     }
+                } catch (e: Exception) {
+                    LogKeeper.logError("FFmpegService", "WebP frame extraction failed", e)
+                    framesDir.deleteRecursively()
                 }
-                if (converted) tempGifFile else tempInFile
+                
+                if (frameCount > 0) {
+                    // Replace INPUT placeholder with PNG sequence pattern
+                    // FFmpeg reads frame_%04d.png at ~10fps
+                    actualInputFile = java.io.File(framesDir, "frame_%04d.png")
+                    pngFramesDir = framesDir
+                } else {
+                    actualInputFile = tempInFile
+                    pngFramesDir = null
+                }
             } else {
-                tempInFile
+                actualInputFile = tempInFile
+                pngFramesDir = null
             }
 
             val tempOutFile = java.io.File(cacheDir, "ffmpeg_out_${System.currentTimeMillis()}.$outputExt")
             
+            val inputArg = if (pngFramesDir != null) {
+                "-framerate 10 -i '${actualInputFile.absolutePath}'"
+            } else {
+                "-i '${actualInputFile.absolutePath}'"
+            }
+            
             // Replace placeholders in command
             val cmd = commandTemplate
-                .replace("%INPUT%", "'${actualInputFile.absolutePath}'")
+                .replace("-i %INPUT%", inputArg)
                 .replace("%OUTPUT%", "'${tempOutFile.absolutePath}'")
 
             LogKeeper.log("Executing FFmpeg: $cmd", "FFmpegService")
@@ -214,6 +261,7 @@ class FFmpegService : Service() {
             // Cleanup temps
             if (tempInFile.exists()) tempInFile.delete()
             if (actualInputFile != tempInFile && actualInputFile.exists()) actualInputFile.delete()
+            pngFramesDir?.deleteRecursively()
             if (tempOutFile.exists()) tempOutFile.delete()
 
             count++
