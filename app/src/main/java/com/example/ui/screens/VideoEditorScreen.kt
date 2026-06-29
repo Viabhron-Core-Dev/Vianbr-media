@@ -82,6 +82,7 @@ fun VideoEditorScreen(
     val uri = Uri.parse(effectiveUri)
 
     LaunchedEffect(uriString) {
+        LogKeeper.log("Starting pre-conversion for mimeType: $mimeType uri: $uriString", "VideoEditor")
         if (mimeType == "image/gif" || mimeType == "image/webp") {
             isConverting = true
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -128,9 +129,10 @@ fun VideoEditorScreen(
                     val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
                     if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                         convertedUri = outputFile.toURI().toString()
+                        LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
                     }
                 } catch (e: Exception) {
-                    LogKeeper.logError("VideoEditor", "Pre-conversion failed", e)
+                    LogKeeper.logError("VideoEditor", "Pre-conversion LaunchedEffect failed: ${e.message}", e)
                 }
             }
             isConverting = false
