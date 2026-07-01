@@ -34,6 +34,17 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
+import android.graphics.Bitmap
+import android.graphics.Canvas as AndroidCanvas
+import android.graphics.ImageDecoder
+import android.graphics.drawable.AnimatedImageDrawable
+import android.os.Build
+import com.arthenica.ffmpegkit.FFmpegKit
+import com.arthenica.ffmpegkit.ReturnCode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+
 import com.example.LogKeeper
 
 data class VideoEditState(
@@ -85,55 +96,85 @@ fun VideoEditorScreen(
         LogKeeper.log("Starting pre-conversion for mimeType: $mimeType uri: $uriString", "VideoEditor")
         if (mimeType == "image/gif" || mimeType == "image/webp") {
             isConverting = true
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    val inputFile = java.io.File(context.cacheDir, "editor_in_${System.currentTimeMillis()}.${if (mimeType == "image/gif") "gif" else "webp"}")
+            try {
+                // Step 1: Copy URI to cache file on IO thread
+                val ext = if (mimeType == "image/gif") "gif" else "webp"
+                val inputFile = withContext(Dispatchers.IO) {
+                    val f = java.io.File(context.cacheDir, "editor_in_${System.currentTimeMillis()}.$ext")
                     context.contentResolver.openInputStream(Uri.parse(uriString))?.use { input ->
-                        inputFile.outputStream().use { output -> input.copyTo(output) }
+                        f.outputStream().use { output -> input.copyTo(output) }
                     }
-                    val outputFile = java.io.File(context.cacheDir, "editor_converted_${System.currentTimeMillis()}.mp4")
-                    
-                    val inputArg = if (mimeType == "image/webp") {
-                        // WebP: extract frames as PNG sequence first
-                        val framesDir = java.io.File(context.cacheDir, "editor_frames_${System.currentTimeMillis()}")
-                        framesDir.mkdirs()
-                        var frameCount = 0
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                            val drawable = android.graphics.ImageDecoder.decodeDrawable(
-                                android.graphics.ImageDecoder.createSource(inputFile)
+                    f
+                }
+
+                val outputFile = java.io.File(context.cacheDir, "editor_converted_${System.currentTimeMillis()}.mp4")
+
+                if (mimeType == "image/webp" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    // Step 2: Decode animated WebP frames on MAIN thread (required for AnimatedImageDrawable)
+                    val framesDir = java.io.File(context.cacheDir, "editor_frames_${System.currentTimeMillis()}")
+                    framesDir.mkdirs()
+                    var frameCount = 0
+
+                    withContext(Dispatchers.Main) {
+                        try {
+                            val drawable = ImageDecoder.decodeDrawable(
+                                ImageDecoder.createSource(inputFile)
                             )
-                            if (drawable is android.graphics.drawable.AnimatedImageDrawable) {
-                                drawable.repeatCount = 0
+                            if (drawable is AnimatedImageDrawable) {
+                                drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
                                 drawable.start()
-                                while (frameCount < 100) {
-                                    val bmp = android.graphics.Bitmap.createBitmap(
+                                val frameDelayMs = 100L
+                                while (frameCount < 60) {
+                                    delay(frameDelayMs)
+                                    val bmp = Bitmap.createBitmap(
                                         drawable.intrinsicWidth.coerceAtLeast(1),
                                         drawable.intrinsicHeight.coerceAtLeast(1),
-                                        android.graphics.Bitmap.Config.ARGB_8888
+                                        Bitmap.Config.ARGB_8888
                                     )
-                                    android.graphics.Canvas(bmp).also { drawable.draw(it) }
-                                    java.io.File(framesDir, "frame_%04d.png".format(frameCount))
-                                        .outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                                    AndroidCanvas(bmp).also { drawable.draw(it) }
+                                    withContext(Dispatchers.IO) {
+                                        java.io.File(framesDir, "frame_%04d.png".format(frameCount))
+                                            .outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                                    }
                                     bmp.recycle()
                                     frameCount++
                                 }
+                                drawable.stop()
                             }
+                        } catch (e: Exception) {
+                            LogKeeper.logError("VideoEditor", "Frame extraction failed: ${e.message}", e)
                         }
-                        if (frameCount > 0) "-framerate 10 -i '${framesDir.absolutePath}/frame_%04d.png'" 
-                        else "-i '${inputFile.absolutePath}'"
-                    } else {
-                        "-i '${inputFile.absolutePath}'"
                     }
-                    
-                    val cmd = "-y $inputArg -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${outputFile.absolutePath}'"
-                    val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
-                    if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
-                        convertedUri = outputFile.toURI().toString()
-                        LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
+
+                    // Step 3: Encode PNG sequence to MP4 on IO thread
+                    if (frameCount > 0) {
+                        withContext(Dispatchers.IO) {
+                            val cmd = "-y -framerate 10 -i '${framesDir.absolutePath}/frame_%04d.png' -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${outputFile.absolutePath}'"
+                            val session = FFmpegKit.execute(cmd)
+                            if (ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
+                                convertedUri = outputFile.toURI().toString()
+                                LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
+                            } else {
+                                LogKeeper.logError("VideoEditor", "FFmpeg PNG→MP4 failed: ${session.returnCode}", Exception())
+                            }
+                            framesDir.deleteRecursively()
+                        }
                     }
-                } catch (e: Exception) {
-                    LogKeeper.logError("VideoEditor", "Pre-conversion LaunchedEffect failed: ${e.message}", e)
+                } else {
+                    // GIF: FFmpeg handles natively, run on IO thread
+                    withContext(Dispatchers.IO) {
+                        val cmd = "-y -i '${inputFile.absolutePath}' -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${outputFile.absolutePath}'"
+                        val session = FFmpegKit.execute(cmd)
+                        if (ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
+                            convertedUri = outputFile.toURI().toString()
+                            LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
+                        } else {
+                            LogKeeper.logError("VideoEditor", "FFmpeg GIF→MP4 failed: ${session.returnCode}", Exception())
+                        }
+                    }
                 }
+            } catch (e: Exception) {
+                LogKeeper.logError("VideoEditor", "Pre-conversion failed: ${e.message}", e)
             }
             isConverting = false
         }
