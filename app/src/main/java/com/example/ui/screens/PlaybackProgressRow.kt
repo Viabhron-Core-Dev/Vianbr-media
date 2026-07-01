@@ -32,7 +32,7 @@ import kotlinx.coroutines.delay
 @kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PlaybackProgressRow(
-    mediaController: MediaController?,
+    mediaController: androidx.media3.common.Player?,
     modifier: Modifier = Modifier
 ) {
     var currentPosition by remember { mutableLongStateOf(0L) }

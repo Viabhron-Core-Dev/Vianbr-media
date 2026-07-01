@@ -789,16 +789,19 @@ fun VideoEditorScreen(
 
         // Export Panel Overlay
         var format by remember { mutableStateOf("mp4") }
-        var resolutionIndex by remember { mutableIntStateOf(2) } // 0 -> 360p, 1 -> 480p, 2 -> 720p, 3 -> 1080p
+        var resolutionIndex by remember { mutableIntStateOf(0) } // 0 -> Original, 1 -> 144p, 2 -> 240p, 3 -> 360p, 4 -> 480p, 5 -> 720p, 6 -> 1080p
         var fpsIndex by remember { mutableIntStateOf(1) } // 0 -> 24fps, 1 -> 30fps, 2 -> 60fps
         var quality by remember { mutableFloatStateOf(0.7f) }
         var fastExport by remember { mutableStateOf(true) }
 
         // Calculate estimated size
         val baseKbps = when (resolutionIndex) {
-            0 -> 500f
-            1 -> 1000f
-            2 -> 2500f
+            0 -> 5000f
+            1 -> 100f
+            2 -> 250f
+            3 -> 500f
+            4 -> 1000f
+            5 -> 2500f
             else -> 5000f
         }
         val fpsMult = when(fpsIndex) {
@@ -832,14 +835,17 @@ fun VideoEditorScreen(
                         Slider(
                             value = resolutionIndex.toFloat(),
                             onValueChange = { resolutionIndex = it.toInt() },
-                            valueRange = 0f..3f,
-                            steps = 2
+                            valueRange = 0f..6f,
+                            steps = 5
                         )
                         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("360p", style = if (resolutionIndex == 0) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
-                            Text("480p", style = if (resolutionIndex == 1) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
-                            Text("720p", style = if (resolutionIndex == 2) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
-                            Text("1080p", style = if (resolutionIndex == 3) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("Og", style = if (resolutionIndex == 0) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("144p", style = if (resolutionIndex == 1) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("240p", style = if (resolutionIndex == 2) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("360p", style = if (resolutionIndex == 3) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("480p", style = if (resolutionIndex == 4) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("720p", style = if (resolutionIndex == 5) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
+                            Text("1080p", style = if (resolutionIndex == 6) MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.primary) else MaterialTheme.typography.labelSmall)
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("Frame Rate")
@@ -877,9 +883,12 @@ fun VideoEditorScreen(
                         
                         // 1. Determine parameters
                         val res = when (resolutionIndex) {
-                            0 -> "640x360"
-                            1 -> "854x480"
-                            2 -> "1280x720"
+                            0 -> "Original"
+                            1 -> "256x144"
+                            2 -> "426x240"
+                            3 -> "640x360"
+                            4 -> "854x480"
+                            5 -> "1280x720"
                             else -> "1920x1080"
                         }
                         val fps = when (fpsIndex) {
@@ -972,9 +981,10 @@ fun VideoEditorScreen(
                         val gifFilterArgs = "-vf \"${gifFilters.joinToString(",")}\""
 
                         val presetArg = if (fastExport) "ultrafast" else "medium"
+                        val resArg = if (res == "Original") "" else "-s $res"
 
                         val cmd = when (format) {
-                            "mp4" -> "-y $trimArgs -i %INPUT% $videoFilterArgs $audioFilterArgs -s $res -r $fps -vcodec libx264 -crf $crf -preset $presetArg %OUTPUT%"
+                            "mp4" -> "-y $trimArgs -i %INPUT% $videoFilterArgs $audioFilterArgs $resArg -r $fps -vcodec libx264 -crf $crf -preset $presetArg %OUTPUT%"
                             "mp3" -> "-y $trimArgs -i %INPUT% -vn $audioFilterArgs -acodec libmp3lame -q:a 2 %OUTPUT%"
                             "gif" -> "-y $trimArgs -i %INPUT% $gifFilterArgs -loop 0 %OUTPUT%"
                             else -> "-y -i %INPUT% %OUTPUT%"

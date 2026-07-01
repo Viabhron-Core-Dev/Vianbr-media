@@ -79,6 +79,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -149,7 +151,7 @@ fun PlayerScreen(
     onNavigateToEdit: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
-    var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    var mediaController = remember { com.example.service.PlayerManager.exoPlayer }
     var showPlayerSettingsDialog by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
@@ -214,11 +216,7 @@ fun PlayerScreen(
         ) { uri: Uri? ->
             if (uri != null) {
                 Toast.makeText(context, "Added subtitle: $uri", Toast.LENGTH_SHORT).show()
-                val args = android.os.Bundle().apply {
-                    putString("subtitle_uri", uri.toString())
-                }
-                val command = androidx.media3.session.SessionCommand("ADD_SUBTITLE", android.os.Bundle.EMPTY)
-                mediaController?.sendCustomCommand(command, args)
+                com.example.service.PlayerManager.addSubtitle(uri.toString())
             }
         }
     val playerViewRef = remember { mutableStateOf<PlayerView?>(null) }
@@ -281,121 +279,114 @@ fun PlayerScreen(
     DisposableEffect(uriString) {
         val settingsManager = com.example.data.SettingsManager.getInstance(context)
         com.example.LogKeeper.log("Starting player for $decodedUri", "PlayerScreen")
-        val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
-        val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         
-        var mainListener: androidx.media3.common.Player.Listener? = null
-        var pipListener: androidx.media3.common.Player.Listener? = null
+        // Ensure player is initialized
+        com.example.service.PlayerManager.initialize(context, false)
+        
+        // Start the service for MediaSession features
+        val intent = android.content.Intent(context, com.example.service.PlaybackService::class.java)
+        try {
+            androidx.core.content.ContextCompat.startForegroundService(context, intent)
+        } catch(e: Exception) {}
 
-        controllerFuture.addListener({
-            val controller = controllerFuture.get()
-            mediaController = controller
+        val controller = mediaController ?: return@DisposableEffect onDispose {}
+        
+        val savedGain = settingsManager.boostGainMb
+        boostGainMb = savedGain
+        if (savedGain > 0) {
+            com.example.service.PlayerManager.setBoostGain(savedGain)
+        }
+        
+        val mainListener = object : androidx.media3.common.Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                    val currentMode = controller.repeatMode
+                    val hasNext = controller.hasNextMediaItem()
+                    if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF && !hasNext) {
+                        onNavigateBack()
+                    }
+                }
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                com.example.LogKeeper.logError("PlayerScreen", "ExoPlayer Error: ${error.message}", error)
+            }
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    context.findActivity()?.requestedOrientation = if (videoSize.width > videoSize.height) {
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    } else {
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                    }
+                }
+            }
+        }
+        controller.addListener(mainListener)
+        
+        if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
+            val mediaViewModel: com.example.ui.screens.MediaViewModel = androidx.lifecycle.ViewModelProvider(context.findActivity() as androidx.activity.ComponentActivity)[com.example.ui.screens.MediaViewModel::class.java]
+            val allFolders = mediaViewModel.mediaFolders.value
+            var foundFolder: com.example.data.MediaFolder? = null
+            var itemIndex = -1
             
-            val savedGain = settingsManager.boostGainMb
-            boostGainMb = savedGain
-            if (savedGain > 0) {
-                controller.sendCustomCommand(
-                    androidx.media3.session.SessionCommand("SET_BOOST_GAIN", android.os.Bundle.EMPTY),
-                    android.os.Bundle().apply { putInt("gainMb", savedGain) }
-                )
+            for (folder in allFolders) {
+                val idx = folder.mediaItems.indexOfFirst { it.uri.toString() == decodedUri.toString() }
+                if (idx != -1) {
+                    foundFolder = folder
+                    itemIndex = idx
+                    break
+                }
             }
             
-            mainListener = object : androidx.media3.common.Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                        val currentMode = controller.repeatMode
-                        val hasNext = controller.hasNextMediaItem()
-                        if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF && !hasNext) {
-                            onNavigateBack()
+            if (foundFolder != null && itemIndex != -1) {
+                val mediaItems = foundFolder.mediaItems.map { MediaItem.Builder().setMediaId(it.uri.toString()).build() }
+                controller.setMediaItems(mediaItems, itemIndex, 0L)
+            } else {
+                controller.setMediaItem(MediaItem.Builder().setMediaId(decodedUri.toString()).build())
+            }
+            
+            controller.prepare()
+            
+            val lastPos = settingsManager.getPlaybackPosition(decodedUriString)
+            if (lastPos > 0 && !settingsManager.isFinished(decodedUriString)) {
+                controller.seekTo(lastPos)
+            }
+        }
+        
+        controller.play()
+        
+        val pipListener = object : androidx.media3.common.Player.Listener {
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        val width = videoSize.width
+                        val height = videoSize.height
+                        if (width > 0 && height > 0) {
+                            val aspect = width.toFloat() / height.toFloat()
+                            val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
+                            context.findActivity()?.setPictureInPictureParams(
+                                PictureInPictureParams.Builder()
+                                    .setAutoEnterEnabled(true)
+                                    .setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
+                                    .build()
+                            )
                         }
-                    }
-                }
-                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    com.example.LogKeeper.logError("PlayerScreen", "ExoPlayer Error: ${error.message}", error)
-                }
-                override fun onVideoSizeChanged(videoSize: VideoSize) {
-                    if (videoSize.width > 0 && videoSize.height > 0) {
-                        context.findActivity()?.requestedOrientation = if (videoSize.width > videoSize.height) {
-                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                        } else {
-                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                        }
-                    }
+                    } catch(e: Exception) {}
                 }
             }
-            controller.addListener(mainListener!!)
-            
-            if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
-                // Try to find the folder this item belongs to
-                val mediaViewModel: com.example.ui.screens.MediaViewModel = androidx.lifecycle.ViewModelProvider(context.findActivity() as androidx.activity.ComponentActivity)[com.example.ui.screens.MediaViewModel::class.java]
-                val allFolders = mediaViewModel.mediaFolders.value
-                var foundFolder: com.example.data.MediaFolder? = null
-                var itemIndex = -1
-                
-                for (folder in allFolders) {
-                    val idx = folder.mediaItems.indexOfFirst { it.uri.toString() == decodedUri.toString() }
-                    if (idx != -1) {
-                        foundFolder = folder
-                        itemIndex = idx
-                        break
-                    }
-                }
-                
-                if (foundFolder != null && itemIndex != -1) {
-                    val mediaItems = foundFolder.mediaItems.map { MediaItem.Builder().setMediaId(it.uri.toString()).build() }
-                    controller.setMediaItems(mediaItems, itemIndex, 0L)
-                } else {
-                    controller.setMediaItem(MediaItem.Builder().setMediaId(decodedUri.toString()).build())
-                }
-                
-                controller.prepare()
-                
-                val lastPos = settingsManager.getPlaybackPosition(decodedUriString)
-                if (lastPos > 0 && !settingsManager.isFinished(decodedUriString)) {
-                    controller.seekTo(lastPos)
-                }
-            }
-            
-            controller.play()
-            
-            pipListener = object : androidx.media3.common.Player.Listener {
-                override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        try {
-                            val width = videoSize.width
-                            val height = videoSize.height
-                            if (width > 0 && height > 0) {
-                                val aspect = width.toFloat() / height.toFloat()
-                                val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
-                                context.findActivity()?.setPictureInPictureParams(
-                                    PictureInPictureParams.Builder()
-                                        .setAutoEnterEnabled(true)
-                                        .setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
-                                        .build()
-                                )
-                            }
-                        } catch(e: Exception) {}
-                    }
-                }
-            }
-            controller.addListener(pipListener!!)
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                context.findActivity()?.setPictureInPictureParams(
-                    PictureInPictureParams.Builder()
-                        .setAutoEnterEnabled(true)
-                        .build()
-                )
-            }
-        }, ContextCompat.getMainExecutor(context))
+        }
+        controller.addListener(pipListener)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.findActivity()?.setPictureInPictureParams(
+                PictureInPictureParams.Builder()
+                    .setAutoEnterEnabled(true)
+                    .build()
+            )
+        }
         
         onDispose {
-            try {
-                val controller = controllerFuture.get()
-                mainListener?.let { controller.removeListener(it) }
-                pipListener?.let { controller.removeListener(it) }
-            } catch (e: Exception) {}
-            MediaController.releaseFuture(controllerFuture)
+            controller.removeListener(mainListener)
+            controller.removeListener(pipListener)
         }
     }
 
@@ -466,7 +457,7 @@ fun PlayerScreen(
 
     Box(modifier = Modifier
         .fillMaxSize()
-        .background(MaterialTheme.colorScheme.background)
+        .background(Color.Black)
         .pointerInput(mediaController, isLocked) {
             detectTapGestures(
                 onDoubleTap = {
@@ -672,26 +663,50 @@ fun PlayerScreen(
                     .windowInsetsPadding(WindowInsets.systemBars)
                     .padding(top = 4.dp, end = 8.dp)
             ) {
-                var timeInfo by remember { mutableStateOf("") }
+                var timeStr by remember { mutableStateOf("") }
+                var batteryPct by remember { mutableStateOf(100) }
+                var isCharging by remember { mutableStateOf(false) }
+
                 LaunchedEffect(Unit) {
                     val intentFilter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+                    val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
                     while (true) {
-                        val cal = java.util.Calendar.getInstance()
-                        val timeStr = String.format(java.util.Locale.US, "%02d:%02d", cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+                        timeStr = sdf.format(java.util.Date()).lowercase(java.util.Locale.US)
                         val batteryStatus = context.registerReceiver(null, intentFilter)
                         val level = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: 100
                         val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: 100
-                        val percentage = if (scale > 0) (level * 100) / scale else 100
-                        timeInfo = "$timeStr • $percentage%"
+                        val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+                        
+                        isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+                        batteryPct = if (scale > 0) (level * 100) / scale else 100
                         delay(10000) // Update every 10 seconds
                     }
                 }
-                Text(
-                    text = timeInfo,
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 10.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                )
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(4.dp)
+                ) {
+                    Text(
+                        text = timeStr,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 12.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    )
+                    Icon(
+                        imageVector = if (isCharging) Icons.Filled.BatteryChargingFull else Icons.Filled.BatteryFull,
+                        contentDescription = if (isCharging) "Charging" else "Battery",
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "$batteryPct%",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 12.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    )
+                }
             }
         }
 
@@ -1136,10 +1151,7 @@ fun PlayerScreen(
                             boostGainMb = newGain
                             val settings = com.example.data.SettingsManager.getInstance(context)
                             settings.boostGainMb = newGain
-                            mediaController?.sendCustomCommand(
-                                androidx.media3.session.SessionCommand("SET_BOOST_GAIN", android.os.Bundle.EMPTY),
-                                android.os.Bundle().apply { putInt("gainMb", newGain) }
-                            )
+                            com.example.service.PlayerManager.setBoostGain(newGain)
                         },
                         valueRange = 0f..1500f,
                         steps = 14
@@ -1380,13 +1392,7 @@ fun PlayerScreen(
                             checked = skipSilence,
                             onCheckedChange = { 
                                 skipSilence = it
-                                // In Media3, use setSkipSilenceEnabled on Player
-                                try {
-                                    val method = mediaController?.javaClass?.getMethod("setSkipSilenceEnabled", Boolean::class.javaPrimitiveType)
-                                    method?.invoke(mediaController, skipSilence)
-                                } catch (e: Exception) {
-                                    // Ignore if not supported
-                                }
+                                mediaController?.skipSilenceEnabled = skipSilence
                             }
                         )
                     }

@@ -12,14 +12,12 @@ import android.os.Looper
 
 class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
-    private var exoPlayer: ExoPlayer? = null
-    private var loudnessEnhancer: android.media.audiofx.LoudnessEnhancer? = null
     private val inactivityHandler = Handler(Looper.getMainLooper())
     private val INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000L // 5 mins
 
     private val releaseRunnable = Runnable {
         com.example.LogKeeper.log("Inactivity timeout reached, releasing ExoPlayer hardware resources.", "PlaybackService")
-        exoPlayer?.run {
+        PlayerManager.exoPlayer?.run {
             if (!playWhenReady) {
                 stop()
                 clearMediaItems()
@@ -30,33 +28,10 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
-        initializePlayer()
-    }
-
-    private fun initializePlayer() {
-        if (exoPlayer != null) return
-        val dataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(this)
-        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this)
-            .setDataSourceFactory(dataSourceFactory)
-            
-        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setAllocator(androidx.media3.exoplayer.upstream.DefaultAllocator(true, androidx.media3.common.C.DEFAULT_BUFFER_SEGMENT_SIZE))
-            .setBufferDurationsMs(
-                androidx.media3.exoplayer.DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-                androidx.media3.exoplayer.DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-                androidx.media3.exoplayer.DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-                androidx.media3.exoplayer.DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
-            )
-            .setTargetBufferBytes(androidx.media3.common.C.LENGTH_UNSET)
-            .setPrioritizeTimeOverSizeThresholds(false)
-            .build()
-
-        exoPlayer = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setLoadControl(loadControl)
-            .build()
-            
-        exoPlayer?.addListener(object : Player.Listener {
+        val settings = com.example.data.SettingsManager.getInstance(this)
+        PlayerManager.initialize(this, false)
+        
+        PlayerManager.exoPlayer?.addListener(object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 val cause = error.cause?.message ?: "Unknown"
                 com.example.LogKeeper.logError("PlaybackService", "Error: ${error.errorCodeName} - ${error.message} - Cause: $cause", error)
@@ -80,14 +55,7 @@ class PlaybackService : MediaSessionService() {
             }
         })
         
-        exoPlayer?.audioSessionId?.let { sessionId ->
-            if (sessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET) {
-                loudnessEnhancer = android.media.audiofx.LoudnessEnhancer(sessionId)
-                loudnessEnhancer?.enabled = false
-            }
-        }
-
-        mediaSession = MediaSession.Builder(this, exoPlayer!!)
+        mediaSession = MediaSession.Builder(this, PlayerManager.exoPlayer!!)
             .setCallback(object : MediaSession.Callback {
                 override fun onConnect(
                     session: MediaSession,
@@ -109,7 +77,7 @@ class PlaybackService : MediaSessionService() {
                 ): ListenableFuture<androidx.media3.session.SessionResult> {
                     if (customCommand.customAction == "SET_BOOST_GAIN") {
                         val gainMb = args.getInt("gainMb", 0)
-                        setBoostGain(gainMb)
+                        PlayerManager.setBoostGain(gainMb)
                         return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
                     }
                     if (customCommand.customAction == "ADD_SUBTITLE") {
@@ -171,7 +139,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onTaskRemoved(rootIntent: android.content.Intent?) {
         super.onTaskRemoved(rootIntent)
-        exoPlayer?.run {
+        PlayerManager.exoPlayer?.run {
             if (!playWhenReady || playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
                 stop()
                 clearMediaItems()
@@ -184,26 +152,13 @@ class PlaybackService : MediaSessionService() {
         return mediaSession
     }
 
-    fun setBoostGain(gainMb: Int) {
-        // gainMb is in millibels: 0 = off, 1000 = +10dB boost
-        if (gainMb <= 0) {
-            loudnessEnhancer?.enabled = false
-        } else {
-            loudnessEnhancer?.setTargetGain(gainMb)
-            loudnessEnhancer?.enabled = true
-        }
-    }
-
     override fun onDestroy() {
         inactivityHandler.removeCallbacksAndMessages(null)
         mediaSession?.run {
-            player.release()
             release()
             mediaSession = null
         }
-        loudnessEnhancer?.release()
-        loudnessEnhancer = null
-        exoPlayer = null
+        PlayerManager.release()
         super.onDestroy()
     }
 }

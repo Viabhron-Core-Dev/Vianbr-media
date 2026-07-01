@@ -62,6 +62,8 @@ class MainActivity : ComponentActivity() {
         )
     )
     setContent {
+      val settings = com.example.data.SettingsManager.getInstance(this)
+      com.example.service.PlayerManager.initialize(this, false)
       MyApplicationTheme {
         var isLoggerOpen by remember { mutableStateOf(false) }
 
