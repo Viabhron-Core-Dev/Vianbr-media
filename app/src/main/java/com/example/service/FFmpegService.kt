@@ -190,7 +190,7 @@ class FFmpegService : Service() {
             } else if (ReturnCode.isCancel(returnCode)) {
                 LogKeeper.log("FFmpeg processing cancelled by user.", "FFmpegService")
             } else {
-                LogKeeper.logError("FFmpegService", "FFmpeg failed with code ${returnCode?.value ?: "null"}", Exception(session.failStackTrace))
+                LogKeeper.logError("FFmpegService", "FFmpeg failed with code ${returnCode?.value ?: "null"}\nLogs: ${session.allLogsAsString}", Exception(session.failStackTrace))
             }
 
             // Cleanup temps

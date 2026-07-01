@@ -149,13 +149,13 @@ fun VideoEditorScreen(
                     // Step 3: Encode PNG sequence to MP4 on IO thread
                     if (frameCount > 0) {
                         withContext(Dispatchers.IO) {
-                            val cmd = "-y -framerate 10 -i '${framesDir.absolutePath}/frame_%04d.png' -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${outputFile.absolutePath}'"
+                            val cmd = "-y -framerate 10 -i '${framesDir.absolutePath}/frame_%04d.png' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${outputFile.absolutePath}'"
                             val session = FFmpegKit.execute(cmd)
                             if (ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                                 convertedUri = outputFile.toURI().toString()
                                 LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
                             } else {
-                                LogKeeper.logError("VideoEditor", "FFmpeg PNG→MP4 failed: ${session.returnCode}", Exception())
+                                LogKeeper.logError("VideoEditor", "FFmpeg PNG→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
                             }
                             framesDir.deleteRecursively()
                         }
@@ -163,13 +163,13 @@ fun VideoEditorScreen(
                 } else {
                     // GIF: FFmpeg handles natively, run on IO thread
                     withContext(Dispatchers.IO) {
-                        val cmd = "-y -i '${inputFile.absolutePath}' -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${outputFile.absolutePath}'"
+                        val cmd = "-y -i '${inputFile.absolutePath}' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${outputFile.absolutePath}'"
                         val session = FFmpegKit.execute(cmd)
                         if (ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                             convertedUri = outputFile.toURI().toString()
                             LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
                         } else {
-                            LogKeeper.logError("VideoEditor", "FFmpeg GIF→MP4 failed: ${session.returnCode}", Exception())
+                            LogKeeper.logError("VideoEditor", "FFmpeg GIF→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
                         }
                     }
                 }
