@@ -124,50 +124,7 @@ class FFmpegService : Service() {
             val pngFramesDir: java.io.File? = null
             
             val inputMimeType = contentResolver.getType(uri) ?: "video/mp4"
-            if (inputMimeType == "image/webp" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                val framesDir = java.io.File(cacheDir, "ffmpeg_frames_${System.currentTimeMillis()}")
-                framesDir.mkdirs()
-                var frameCount = 0
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    try {
-                        val drawable = android.graphics.ImageDecoder.decodeDrawable(
-                            android.graphics.ImageDecoder.createSource(actualInputFile)
-                        )
-                        if (drawable is android.graphics.drawable.AnimatedImageDrawable) {
-                            drawable.repeatCount = android.graphics.drawable.AnimatedImageDrawable.REPEAT_INFINITE
-                            drawable.start()
-                            val frameDelayMs = 100L
-                            while (frameCount < 60) {
-                                kotlinx.coroutines.delay(frameDelayMs)
-                                val bmp = android.graphics.Bitmap.createBitmap(
-                                    drawable.intrinsicWidth.coerceAtLeast(1),
-                                    drawable.intrinsicHeight.coerceAtLeast(1),
-                                    android.graphics.Bitmap.Config.ARGB_8888
-                                )
-                                android.graphics.Canvas(bmp).also { drawable.draw(it) }
-                                kotlinx.coroutines.withContext(Dispatchers.IO) {
-                                    java.io.File(framesDir, "frame_%04d.png".format(frameCount))
-                                        .outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
-                                }
-                                bmp.recycle()
-                                frameCount++
-                            }
-                            drawable.stop()
-                        }
-                    } catch (e: Exception) {
-                        LogKeeper.logError("FFmpegService", "Frame extraction failed: ${e.message}", e)
-                    }
-                }
-                if (frameCount > 0) {
-                    val preConvertedFile = java.io.File(cacheDir, "preconverted_${System.currentTimeMillis()}.mp4")
-                    val preCmd = "-y -framerate 10 -i '${framesDir.absolutePath}/frame_%04d.png' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${preConvertedFile.absolutePath}'"
-                    val session = FFmpegKit.execute(preCmd)
-                    if (ReturnCode.isSuccess(session.returnCode) && preConvertedFile.exists()) {
-                        actualInputFile = preConvertedFile
-                    }
-                    framesDir.deleteRecursively()
-                }
-            } else if (inputMimeType == "image/gif") {
+            if (inputMimeType == "image/webp" || inputMimeType == "image/gif") {
                 val preConvertedFile = java.io.File(cacheDir, "preconverted_${System.currentTimeMillis()}.mp4")
                 val preCmd = "-y -i '${actualInputFile.absolutePath}' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${preConvertedFile.absolutePath}'"
                 val session = FFmpegKit.execute(preCmd)

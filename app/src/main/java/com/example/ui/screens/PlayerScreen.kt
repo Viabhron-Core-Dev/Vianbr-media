@@ -287,7 +287,7 @@ fun PlayerScreen(
         // Start the service for MediaSession features
         val intent = android.content.Intent(context, com.example.service.PlaybackService::class.java)
         try {
-            androidx.core.content.ContextCompat.startForegroundService(context, intent)
+            context.startService(intent)
         } catch(e: Exception) {}
 
         val controller = mediaController ?: return@DisposableEffect onDispose {}
