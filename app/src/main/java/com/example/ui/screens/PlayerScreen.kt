@@ -151,7 +151,7 @@ fun PlayerScreen(
     onNavigateToEdit: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
-    var mediaController = remember { com.example.service.PlayerManager.exoPlayer }
+    var mediaController by remember { mutableStateOf(com.example.service.PlayerManager.exoPlayer) }
     var showPlayerSettingsDialog by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
@@ -282,6 +282,7 @@ fun PlayerScreen(
         
         // Ensure player is initialized
         com.example.service.PlayerManager.initialize(context, false)
+        mediaController = com.example.service.PlayerManager.exoPlayer
         
         // Start the service for MediaSession features
         val intent = android.content.Intent(context, com.example.service.PlaybackService::class.java)

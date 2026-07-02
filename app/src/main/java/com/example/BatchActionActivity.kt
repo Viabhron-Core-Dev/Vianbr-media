@@ -112,7 +112,7 @@ class BatchActionActivity : ComponentActivity() {
                             FFmpegBatchDialog(
                                 uris = initialUris,
                                 onDismiss = { finish() },
-                                onStartProcessing = { uris, format, cmdTemplate ->
+                                onStartProcessing = { uris, cmdTemplate, format ->
                                     val serviceIntent = Intent(this@BatchActionActivity, com.example.service.FFmpegService::class.java).apply {
                                         action = "START_BATCH"
                                         putStringArrayListExtra("uris", ArrayList(uris))

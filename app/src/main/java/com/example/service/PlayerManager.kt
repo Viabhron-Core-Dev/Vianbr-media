@@ -48,8 +48,12 @@ object PlayerManager {
             
         exoPlayer?.audioSessionId?.let { sessionId ->
             if (sessionId != C.AUDIO_SESSION_ID_UNSET) {
-                loudnessEnhancer = LoudnessEnhancer(sessionId)
-                loudnessEnhancer?.enabled = false
+                try {
+                    loudnessEnhancer = LoudnessEnhancer(sessionId)
+                    loudnessEnhancer?.enabled = false
+                } catch (e: Exception) {
+                    com.example.LogKeeper.logError("PlayerManager", "Failed to create LoudnessEnhancer", e)
+                }
             }
         }
     }

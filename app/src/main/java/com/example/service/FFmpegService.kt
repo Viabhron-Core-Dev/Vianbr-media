@@ -53,6 +53,10 @@ class FFmpegService : Service() {
         val action = intent?.action
         if (action == "STOP") {
             isCancelled = true
+            FFmpegKit.cancel()
+            FFmpegStatus.isRunning = false
+            stopForeground(true)
+            stopSelf()
             return START_NOT_STICKY
         }
 
@@ -135,9 +139,15 @@ class FFmpegService : Service() {
 
             FFmpegKitConfig.enableStatisticsCallback { statistics ->
                 val timeSec = statistics.time / 1000
-                val sizeKb = statistics.size / 1024
+                val minutes = timeSec / 60
+                val seconds = timeSec % 60
+                val timeStr = String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
+                
+                val sizeMb = statistics.size / (1024.0 * 1024.0)
+                val sizeStr = String.format(java.util.Locale.US, "%.2f MB", sizeMb)
+                
                 val speed = statistics.speed
-                FFmpegStatus.currentProgress = "Time: ${timeSec}s | Size: ${sizeKb}kB | Speed: ${speed}x"
+                FFmpegStatus.currentProgress = "Time: $timeStr | Size: $sizeStr | Speed: ${speed}x"
             }
 
             // Execute FFmpeg

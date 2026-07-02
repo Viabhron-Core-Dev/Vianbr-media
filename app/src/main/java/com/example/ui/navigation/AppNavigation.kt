@@ -293,7 +293,17 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
                     }
                 }
             },
-            confirmButton = {}
+            confirmButton = {},
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val intent = android.content.Intent(context, com.example.service.CompressionService::class.java).apply {
+                        action = "STOP"
+                    }
+                    context.startService(intent)
+                }) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            }
         )
     }
 

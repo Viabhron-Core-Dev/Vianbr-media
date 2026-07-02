@@ -34,6 +34,7 @@ class CompressionService : Service() {
     private val serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private val CHANNEL_ID = "CompressionServiceChannel"
+    @Volatile private var isCancelled = false
 
     override fun onCreate() {
         super.onCreate()
@@ -41,7 +42,17 @@ class CompressionService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val action = intent?.action
+        if (action == "STOP") {
+            isCancelled = true
+            CompressionStatus.isRunning = false
+            stopForeground(true)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        
         val uris = intent?.getStringArrayListExtra("uris") ?: return START_NOT_STICKY
+        isCancelled = false
         val maxWidth = intent.getIntExtra("maxWidth", -1)
         val maxHeight = intent.getIntExtra("maxHeight", -1)
 
@@ -98,6 +109,7 @@ class CompressionService : Service() {
 
         var count = 0
         for (uriStr in uris) {
+            if (isCancelled) break
             try {
                 val uri = Uri.parse(uriStr)
                 val inputStream = contentResolver.openInputStream(uri)
