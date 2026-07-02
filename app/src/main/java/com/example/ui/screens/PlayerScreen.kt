@@ -432,9 +432,8 @@ fun PlayerScreen(
                 val dur = controller.duration
                 com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPos, dur)
                 if (!backgroundPlayEnabledRef.value) {
-                    controller.stop()
+                    controller.pause()
                 }
-                controller.release()
             }
         }
     }

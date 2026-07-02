@@ -93,10 +93,10 @@ object LogKeeper {
             
             val file = File(downloadsDir, fileName)
             val crashData = """
-                Crash Dump - ${'$'}dateStr
-                Message: ${'$'}{throwable.message}
+                Crash Dump - $dateStr
+                Message: ${throwable.message}
                 Stacktrace:
-                ${'$'}{Log.getStackTraceString(throwable)}
+                ${Log.getStackTraceString(throwable)}
             """.trimIndent()
             
             file.writeText(crashData)

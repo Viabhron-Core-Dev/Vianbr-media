@@ -124,7 +124,18 @@ class MediaRepository(private val context: Context) {
                     val itemSize = cursor.getLong(sizeCol)
                     val mimeType = cursor.getString(mimeCol) ?: ""
 
-                    val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Files.getContentUri("external"), id)
+                    val mediaType = when {
+                        mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v") -> MediaType.VIDEO
+                        mimeType.startsWith("image/") || ext in listOf("jpg", "jpeg", "png", "webp", "heic") -> MediaType.IMAGE
+                        else -> MediaType.AUDIO
+                    }
+
+                    val baseUri = when (mediaType) {
+                        MediaType.VIDEO -> android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                        MediaType.IMAGE -> android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                        MediaType.AUDIO -> android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                    }
+                    val uri = android.content.ContentUris.withAppendedId(baseUri, id)
                     val uriStr = uri.toString()
                     
                     val isFinished = settings.isFinished(uriStr)
@@ -136,12 +147,6 @@ class MediaRepository(private val context: Context) {
                         PlaybackTag.PLAYING
                     } else {
                         if (currentTime - dateMs < fifteenDaysMs) PlaybackTag.NEW else PlaybackTag.UNSEEN
-                    }
-
-                    val mediaType = when {
-                        mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v") -> MediaType.VIDEO
-                        mimeType.startsWith("image/") || ext in listOf("jpg", "jpeg", "png", "webp", "heic") -> MediaType.IMAGE
-                        else -> MediaType.AUDIO
                     }
 
                     val item = MediaItem(

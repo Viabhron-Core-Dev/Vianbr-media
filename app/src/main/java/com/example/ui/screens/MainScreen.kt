@@ -118,6 +118,37 @@ fun MainScreen(
         }
     }
 
+    var pendingRenameUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var pendingRenameName by remember { mutableStateOf("") }
+    
+    val renameLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val uri = pendingRenameUri
+            val name = pendingRenameName
+            if (uri != null && name.isNotEmpty()) {
+                coroutineScope.launch {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        try {
+                            val values = android.content.ContentValues().apply {
+                                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
+                            }
+                            context.contentResolver.update(uri, values, null, null)
+                        } catch (e: Exception) {
+                            com.example.LogKeeper.logError("MainScreen", "Error renaming file after permission", e)
+                        }
+                    }
+                    selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
+                    selectedMediaItems.clear()
+                    showRenameDialog = false
+                    pendingRenameUri = null
+                    pendingRenameName = ""
+                }
+            }
+        }
+    }
+
     BackHandler(enabled = isSearchActive) {
         isSearchActive = false
         searchQuery = ""
@@ -756,41 +787,35 @@ fun MainScreen(
                                 val hasExt = renameValue.contains(".") && renameValue.substringAfterLast(".") == extension
                                 val newNameWithExt = if (extension.isNotEmpty() && !hasExt) "$renameValue.$extension" else renameValue
                                 
-                                var path: String? = null
-                                if (uri.scheme == "file") {
-                                    path = uri.path
-                                } else if (uri.scheme == "content" && !android.provider.DocumentsContract.isDocumentUri(context, uri)) {
-                                    context.contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { cursor ->
-                                        if (cursor.moveToFirst()) {
-                                            val idx = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATA)
-                                            if (idx != -1) path = cursor.getString(idx)
-                                        }
-                                    }
-                                }
-
-                                if (path != null) {
-                                    val file = java.io.File(path!!)
+                                if (android.provider.DocumentsContract.isDocumentUri(context, uri)) {
+                                    android.provider.DocumentsContract.renameDocument(context.contentResolver, uri, newNameWithExt)
+                                } else if (uri.scheme == "file") {
+                                    val file = java.io.File(uri.path!!)
                                     if (file.exists()) {
                                         val newFile = java.io.File(file.parent, newNameWithExt)
-                                        if (file.renameTo(newFile)) {
-                                            try {
-                                                val values = android.content.ContentValues().apply {
-                                                    put(android.provider.MediaStore.MediaColumns.DATA, newFile.absolutePath)
-                                                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, newNameWithExt)
-                                                }
-                                                context.contentResolver.update(uri, values, null, null)
-                                            } catch (e: Exception) {
-                                                android.media.MediaScannerConnection.scanFile(context, arrayOf(newFile.absolutePath), null, null)
+                                        file.renameTo(newFile)
+                                    }
+                                } else {
+                                    try {
+                                        val values = android.content.ContentValues().apply {
+                                            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, newNameWithExt)
+                                        }
+                                        context.contentResolver.update(uri, values, null, null)
+                                    } catch (se: SecurityException) {
+                                        pendingRenameUri = uri
+                                        pendingRenameName = newNameWithExt
+                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                                            val pendingIntent = android.provider.MediaStore.createWriteRequest(context.contentResolver, listOf(uri))
+                                            renameLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(pendingIntent.intentSender).build())
+                                            return@withContext
+                                        } else if (android.os.Build.VERSION.SDK_INT == android.os.Build.VERSION_CODES.Q) {
+                                            val recoverable = se as? android.app.RecoverableSecurityException
+                                            recoverable?.userAction?.actionIntent?.intentSender?.let { sender ->
+                                                renameLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
+                                                return@withContext
                                             }
                                         }
                                     }
-                                } else if (android.provider.DocumentsContract.isDocumentUri(context, uri)) {
-                                    android.provider.DocumentsContract.renameDocument(context.contentResolver, uri, newNameWithExt)
-                                } else {
-                                    val values = android.content.ContentValues().apply {
-                                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, newNameWithExt)
-                                    }
-                                    context.contentResolver.update(uri, values, null, null)
                                 }
                             } catch (e: Exception) {
                                 com.example.LogKeeper.logError("MainScreen", "Error renaming file ${selectedItem.name}", e)

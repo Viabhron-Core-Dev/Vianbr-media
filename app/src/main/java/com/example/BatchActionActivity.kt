@@ -58,13 +58,38 @@ class BatchActionActivity : ComponentActivity() {
         }
 
         val mimeType = intent?.type ?: ""
-        val isVideoOrAudio = mimeType.startsWith("video/") || mimeType.startsWith("audio/") || initialUris.any { 
-            it.lowercase().endsWith(".mp4") || it.lowercase().endsWith(".gif") || it.lowercase().endsWith(".webp") 
-        }
 
         setContent {
             MyApplicationTheme {
                 var startedProcessing by remember { mutableStateOf(false) }
+                var isAnimatedImageState by remember { mutableStateOf<Boolean?>(null) }
+                
+                LaunchedEffect(initialUris) {
+                    val isAnim = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        initialUris.any { uriStr ->
+                            val uri = Uri.parse(uriStr)
+                            val mime = contentResolver.getType(uri) ?: ""
+                            if (mime == "image/gif" || mime == "image/webp") {
+                                var animated = false
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                                    try {
+                                        val source = android.graphics.ImageDecoder.createSource(contentResolver, uri)
+                                        val drawable = android.graphics.ImageDecoder.decodeDrawable(source)
+                                        animated = drawable is android.graphics.drawable.AnimatedImageDrawable
+                                    } catch(e: Exception) {}
+                                }
+                                animated
+                            } else {
+                                false
+                            }
+                        }
+                    }
+                    isAnimatedImageState = isAnim
+                }
+
+                val isVideoOrAudio = mimeType.startsWith("video/") || mimeType.startsWith("audio/") || initialUris.any { 
+                    it.lowercase().endsWith(".mp4") 
+                } || isAnimatedImageState == true
                 
                 LaunchedEffect(CompressionStatus.isRunning, FFmpegStatus.isRunning) {
                     if (startedProcessing && !CompressionStatus.isRunning && !FFmpegStatus.isRunning) {
@@ -107,6 +132,8 @@ class BatchActionActivity : ComponentActivity() {
                                 }
                             }
                         )
+                    } else if (isAnimatedImageState == null) {
+                        CircularProgressIndicator(color = Color.White)
                     } else {
                         if (isVideoOrAudio) {
                             FFmpegBatchDialog(

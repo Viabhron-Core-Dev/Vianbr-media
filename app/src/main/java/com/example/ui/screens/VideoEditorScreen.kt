@@ -996,6 +996,7 @@ fun VideoEditorScreen(
                         // 3. Start FFmpegService
                         val intent = android.content.Intent(context, com.example.service.FFmpegService::class.java).apply {
                             putStringArrayListExtra("uris", arrayListOf(effectiveUri))
+                            putStringArrayListExtra("original_names", arrayListOf(com.example.ui.screens.getDisplayNameFromUri(context, initialUri)))
                             putExtra("commandTemplate", cmd)
                             putExtra("outputExt", format)
                         }
