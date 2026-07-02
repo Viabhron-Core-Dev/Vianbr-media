@@ -339,10 +339,10 @@ fun PlayerScreen(
             }
             
             if (foundFolder != null && itemIndex != -1) {
-                val mediaItems = foundFolder.mediaItems.map { MediaItem.Builder().setMediaId(it.uri.toString()).build() }
+                val mediaItems = foundFolder.mediaItems.map { MediaItem.Builder().setUri(it.uri).setMediaId(it.uri.toString()).build() }
                 controller.setMediaItems(mediaItems, itemIndex, 0L)
             } else {
-                controller.setMediaItem(MediaItem.Builder().setMediaId(decodedUri.toString()).build())
+                controller.setMediaItem(MediaItem.Builder().setUri(decodedUri).setMediaId(decodedUri.toString()).build())
             }
             
             controller.prepare()

@@ -79,6 +79,7 @@ fun VideoEditorScreen(
 ) {
     var editState by remember { mutableStateOf(VideoEditState()) }
     var currentTool by remember { mutableStateOf(VideoEditorTool.NONE) }
+    var backupEditState by remember { mutableStateOf<VideoEditState?>(null) }
     var showExportPanel by remember { mutableStateOf(false) }
     var durationMs by remember { mutableLongStateOf(1L) }
 
@@ -545,21 +546,33 @@ fun VideoEditorScreen(
                             .padding(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        ToolIcon(Icons.Filled.ContentCut, "Trim") { currentTool = VideoEditorTool.TRIM }
-                        ToolIcon(Icons.Filled.Speed, "Speed") { currentTool = VideoEditorTool.SPEED }
-                        ToolIcon(Icons.Filled.Crop, "Crop") { currentTool = VideoEditorTool.CROP }
-                        ToolIcon(Icons.Filled.VolumeUp, "Audio") { currentTool = VideoEditorTool.AUDIO }
-                        ToolIcon(Icons.Filled.AspectRatio, "Aspect Ratio") { currentTool = VideoEditorTool.ASPECT_RATIO }
-                        ToolIcon(Icons.Filled.RotateRight, "Rotate") { currentTool = VideoEditorTool.ROTATE }
-                        ToolIcon(Icons.Filled.ClosedCaption, "Captions") { currentTool = VideoEditorTool.CAPTIONS }
+                        ToolIcon(Icons.Filled.ContentCut, "Trim") { backupEditState = editState.copy(); currentTool = VideoEditorTool.TRIM }
+                        ToolIcon(Icons.Filled.Speed, "Speed") { backupEditState = editState.copy(); currentTool = VideoEditorTool.SPEED }
+                        ToolIcon(Icons.Filled.Crop, "Crop") { backupEditState = editState.copy(); currentTool = VideoEditorTool.CROP }
+                        ToolIcon(Icons.Filled.VolumeUp, "Audio") { backupEditState = editState.copy(); currentTool = VideoEditorTool.AUDIO }
+                        ToolIcon(Icons.Filled.AspectRatio, "Aspect Ratio") { backupEditState = editState.copy(); currentTool = VideoEditorTool.ASPECT_RATIO }
+                        ToolIcon(Icons.Filled.RotateRight, "Rotate") { backupEditState = editState.copy(); currentTool = VideoEditorTool.ROTATE }
+                        ToolIcon(Icons.Filled.ClosedCaption, "Captions") { backupEditState = editState.copy(); currentTool = VideoEditorTool.CAPTIONS }
                     }
                 } else {
                     // Partial Tool UI Panel
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(currentTool.name, style = MaterialTheme.typography.titleSmall)
-                            IconButton(onClick = { currentTool = VideoEditorTool.NONE }) {
-                                Icon(Icons.Filled.Check, contentDescription = "Done")
+                            Row {
+                                IconButton(onClick = { 
+                                    backupEditState?.let { editState = it }
+                                    currentTool = VideoEditorTool.NONE 
+                                    backupEditState = null
+                                }) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                                }
+                                IconButton(onClick = { 
+                                    currentTool = VideoEditorTool.NONE 
+                                    backupEditState = null
+                                }) {
+                                    Icon(Icons.Filled.Check, contentDescription = "Done")
+                                }
                             }
                         }
                         
