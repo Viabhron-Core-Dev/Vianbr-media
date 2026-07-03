@@ -109,15 +109,60 @@ fun VideoEditorScreen(
                 }
                 val outputFile = java.io.File(context.cacheDir, "editor_converted_${System.currentTimeMillis()}.mp4")
                 
-                // GIF & WEBP: FFmpeg handles natively, run on IO thread
-                withContext(Dispatchers.IO) {
-                    val cmd = "-y -i '${inputFile.absolutePath}' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${outputFile.absolutePath}'"
-                    val session = FFmpegKit.execute(cmd)
-                    if (ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
-                        convertedUri = outputFile.toURI().toString()
-                        LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
-                    } else {
-                        LogKeeper.logError("VideoEditor", "FFmpeg GIF/WEBP→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
+                if (mimeType == "image/webp") {
+                    val framesDir = java.io.File(context.cacheDir, "editor_frames_${System.currentTimeMillis()}")
+                    framesDir.mkdirs()
+                    var frameCount = 0
+
+                    var calculatedFps = 30
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val bytes = inputFile.readBytes()
+                            val webpImage = com.facebook.animated.webp.WebPImage.createFromByteArray(bytes, com.facebook.imagepipeline.common.ImageDecodeOptions.defaults())
+                            frameCount = webpImage.frameCount
+                            val durations = webpImage.frameDurations
+                            val averageDurationMs = if (frameCount > 0) durations.sum() / frameCount else 33
+                            calculatedFps = if (averageDurationMs > 0) 1000 / averageDurationMs else 30
+                            for (i in 0 until frameCount) {
+                                val frame = webpImage.getFrame(i)
+                                val w = frame.width
+                                val h = frame.height
+                                val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                                frame.renderFrame(w, h, bmp)
+                                java.io.File(framesDir, "frame_%04d.png".format(i))
+                                    .outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                                bmp.recycle()
+                                frame.dispose()
+                            }
+                            webpImage.dispose()
+                        } catch (e: Exception) {
+                            LogKeeper.logError("VideoEditor", "Frame extraction failed: ${e.message}", e)
+                        }
+                    }
+
+                    if (frameCount > 0) {
+                        withContext(Dispatchers.IO) {
+                            val cmd = "-y -framerate $calculatedFps -i '${framesDir.absolutePath}/frame_%04d.png' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${outputFile.absolutePath}'"
+                            val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
+                            if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
+                                convertedUri = outputFile.toURI().toString()
+                                LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
+                            } else {
+                                LogKeeper.logError("VideoEditor", "FFmpeg PNG→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
+                            }
+                            framesDir.deleteRecursively()
+                        }
+                    }
+                } else if (mimeType == "image/gif") {
+                    withContext(Dispatchers.IO) {
+                        val cmd = "-y -i '${inputFile.absolutePath}' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p '${outputFile.absolutePath}'"
+                        val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
+                        if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
+                            convertedUri = outputFile.toURI().toString()
+                            LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
+                        } else {
+                            LogKeeper.logError("VideoEditor", "FFmpeg GIF/WEBP→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
+                        }
                     }
                 }
             } catch (e: Exception) {

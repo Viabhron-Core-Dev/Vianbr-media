@@ -490,6 +490,7 @@ fun PlayerScreen(
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
                 val maxVolume = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
                 val startVolume = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+                val startBoost = boostGainMb
                 
                 val window = context.findActivity()?.window
                 var startBrightness = window?.attributes?.screenBrightness ?: -1f
@@ -540,11 +541,26 @@ fun PlayerScreen(
                                     change.consume()
                                 }
                                 GestureType.VOLUME -> {
-                                    val volumeChange = -(dragDistanceY / size.height) * maxVolume
-                                    val newVolume = (startVolume + volumeChange).toInt().coerceIn(0, maxVolume)
+                                    val virtualMaxVolume = maxVolume * 2
+                                    val virtualStartVolume = startVolume + (startBoost.toFloat() / 1500f * maxVolume).toInt()
+                                    val volumeChange = -(dragDistanceY / size.height) * virtualMaxVolume
+                                    val virtualNewVolume = (virtualStartVolume + volumeChange).toInt().coerceIn(0, virtualMaxVolume)
+                                    
+                                    val newVolume = virtualNewVolume.coerceAtMost(maxVolume)
+                                    val newBoost = if (virtualNewVolume > maxVolume) {
+                                        ((virtualNewVolume - maxVolume).toFloat() / maxVolume * 1500f).toInt()
+                                    } else {
+                                        0
+                                    }
+                                    
                                     audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, newVolume, 0)
-                                    gestureVolumeRatio = newVolume.toFloat() / maxVolume.toFloat()
-                                    gestureText = "Volume: ${(gestureVolumeRatio * 100).roundToInt()}%"
+                                    boostGainMb = newBoost
+                                    val settings = com.example.data.SettingsManager.getInstance(context)
+                                    settings.boostGainMb = newBoost
+                                    com.example.service.PlayerManager.setBoostGain(newBoost)
+
+                                    gestureVolumeRatio = virtualNewVolume.toFloat() / virtualMaxVolume.toFloat()
+                                    gestureText = "Volume: ${(gestureVolumeRatio * 200).roundToInt()}%"
                                     change.consume()
                                 }
                                 else -> {}
@@ -625,6 +641,13 @@ fun PlayerScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "${(gestureVolumeRatio * 200).roundToInt()}",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
                         Icon(androidx.compose.material.icons.Icons.Filled.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
                     }
                 }
@@ -660,8 +683,7 @@ fun PlayerScreen(
         ) {
             Box(
                 modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.systemBars)
-                    .padding(top = 4.dp, end = 8.dp)
+                    .padding(top = 8.dp, end = 8.dp)
             ) {
                 var timeStr by remember { mutableStateOf("") }
                 var batteryPct by remember { mutableStateOf(100) }

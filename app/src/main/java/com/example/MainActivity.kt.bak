@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    com.facebook.drawee.backends.pipeline.Fresco.initialize(this)
+    com.facebook.fresco.Fresco.initialize(this)
     
     coil.Coil.setImageLoader(
         coil.ImageLoader.Builder(this)

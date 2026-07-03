@@ -683,11 +683,13 @@ fun MainScreen(
     }
 
     if (showDeleteConfirmDialog && selectedMediaItems.isNotEmpty()) {
+        val totalSize = selectedMediaItems.sumOf { it.size }
+        val formattedSize = android.text.format.Formatter.formatShortFileSize(context, totalSize)
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
             title = { Text("Delete Files") },
             text = { 
-                Text("Are you sure you want to delete ${selectedMediaItems.size} items? \nThis cannot be undone.") 
+                Text("Are you sure you want to delete ${selectedMediaItems.size} items? \nTotal size: $formattedSize \nThis cannot be undone.") 
             },
             confirmButton = {
                 TextButton(onClick = {

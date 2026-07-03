@@ -38,8 +38,6 @@ ffmpegKit = "v1.0.7"
 [libraries]
 fresco-animated-webp = { group = "com.facebook.fresco", name = "animated-webp", version.ref = "fresco" }
 fresco-webpsupport = { group = "com.facebook.fresco", name = "webpsupport", version.ref = "fresco" }
-fresco-animated-base = { group = "com.facebook.fresco", name = "animated-base", version.ref = "fresco" }
-fresco-core = { group = "com.facebook.fresco", name = "fresco", version.ref = "fresco" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
