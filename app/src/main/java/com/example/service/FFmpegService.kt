@@ -137,17 +137,46 @@ class FFmpegService : Service() {
                         val durations = webpImage.frameDurations
                         val averageDurationMs = if (frameCount > 0) durations.sum() / frameCount else 33
                         calculatedFps = if (averageDurationMs > 0) 1000 / averageDurationMs else 30
+                        
+                        
+                        var lastCachedFrame: android.graphics.Bitmap? = null
+                        var lastCachedFrameIndex = -1
+
+                        val result = com.facebook.imagepipeline.animated.base.AnimatedImageResult.forAnimatedImage(webpImage)
+                        val backend = com.facebook.imagepipeline.animated.impl.AnimatedDrawableBackendImpl(
+                            com.facebook.imagepipeline.animated.util.AnimatedDrawableUtil(), 
+                            result, 
+                            android.graphics.Rect(0, 0, webpImage.width, webpImage.height), 
+                            false
+                        )
+                        val compositor = com.facebook.imagepipeline.animated.impl.AnimatedImageCompositor(
+                            backend, 
+                            false, 
+                            object : com.facebook.imagepipeline.animated.impl.AnimatedImageCompositor.Callback {
+                                override fun onIntermediateResult(frameNumber: Int, bitmap: android.graphics.Bitmap) {}
+                                override fun getCachedBitmap(frameNumber: Int): com.facebook.common.references.CloseableReference<android.graphics.Bitmap>? {
+                                    return if (frameNumber == lastCachedFrameIndex && lastCachedFrame != null) {
+                                        com.facebook.common.references.CloseableReference.of(lastCachedFrame!!, com.facebook.common.references.ResourceReleaser { })
+                                    } else null
+                                }
+                            }
+                        )
+
+                        var previousFrameToRecycle: android.graphics.Bitmap? = null
                         for (i in 0 until frameCount) {
-                            val frame = webpImage.getFrame(i)
-                            val w = frame.width
-                            val h = frame.height
+                            val w = webpImage.width
+                            val h = webpImage.height
                             val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
-                            frame.renderFrame(w, h, bmp)
+                            compositor.renderFrame(i, bmp)
                             java.io.File(framesDir, "frame_%04d.png".format(i))
                                 .outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
-                            bmp.recycle()
-                            frame.dispose()
+                            
+                            previousFrameToRecycle?.recycle()
+                            lastCachedFrame = bmp
+                            lastCachedFrameIndex = i
+                            previousFrameToRecycle = bmp
                         }
+                        previousFrameToRecycle?.recycle()
                         webpImage.dispose()
                     } catch (e: Exception) {
                         LogKeeper.logError("FFmpegService", "Frame extraction failed: ${e.message}", e)
