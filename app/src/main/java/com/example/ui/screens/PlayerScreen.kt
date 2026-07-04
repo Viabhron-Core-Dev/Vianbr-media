@@ -888,21 +888,19 @@ fun PlayerScreen(
                                     
                                     androidx.compose.material3.AlertDialog(
                                         onDismissRequest = { showDetailsDialog = false },
-                                        containerColor = Color(0xFF19202D),
-                                        titleContentColor = Color.White,
-                                        textContentColor = Color.White,
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
                                         title = { Text("Properties", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
                                         text = { 
                                             Column {
-                                                Text("Name: $detailsName", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                                                Text("Name: $detailsName", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text("Size: $detailsSize", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                                                Text("Size: $detailsSize", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text("Duration: $durationStr", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                                                Text("Duration: $durationStr", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text("Date Added: $detailsDate", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                                                Text("Date Added: $detailsDate", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 Spacer(modifier = Modifier.height(8.dp))
-                                                Text("Path: $detailsPath", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                                Text("Path: $detailsPath", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                                             }
                                         },
                                         confirmButton = {
@@ -1158,7 +1156,7 @@ fun PlayerScreen(
             Card(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF19202D), contentColor = Color.White)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -1204,7 +1202,7 @@ fun PlayerScreen(
                                             showAudioDialog = false
                                         }.padding(vertical = 12.dp)
                                     ) {
-                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) Color(0xFF2196F3) else Color.White)
+                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
@@ -1226,7 +1224,7 @@ fun PlayerScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         androidx.compose.material3.TextButton(onClick = { showAudioDialog = false }) {
-                            Text("Cancel", color = Color.White)
+                            Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -1239,7 +1237,7 @@ fun PlayerScreen(
             Card(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF19202D), contentColor = Color.White)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text("Select Subtitles", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -1283,7 +1281,7 @@ fun PlayerScreen(
                                             showSubtitleDialog = false
                                         }.padding(vertical = 12.dp)
                                     ) {
-                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) Color(0xFF2196F3) else Color.White)
+                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
@@ -1305,7 +1303,7 @@ fun PlayerScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         androidx.compose.material3.TextButton(onClick = { showSubtitleDialog = false }) {
-                            Text("Cancel", color = Color.White)
+                            Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -1320,7 +1318,7 @@ fun PlayerScreen(
                     .fillMaxWidth()
                     .padding(16.dp),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF19202D), contentColor = Color.White)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),

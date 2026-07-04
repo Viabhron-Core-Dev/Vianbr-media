@@ -2,11 +2,11 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val DarkBlueBackground = Color(0xFF19202D)
-val DarkBlueSurface = Color(0xFF19202D)
-val DarkBlueSurfaceVariant = Color(0xFF242D3D)
-val DarkBluePrimary = Color(0xFF2196F3)
-val DarkBlueOnPrimary = Color.White
-val DarkBlueOnBackground = Color.White
-val DarkBlueOnSurface = Color.White
-val DarkBlueOnSurfaceVariant = Color(0xFFB0BEC5)
+val LightBlueBackground = Color(0xFFF5F7FA) // Very light greyish blue
+val LightBlueSurface = Color.White
+val LightBlueSurfaceVariant = Color(0xFFE3E8EE) // Grey white with blue tint
+val LightBluePrimary = Color(0xFF2196F3)
+val LightBlueOnPrimary = Color.White
+val LightBlueOnBackground = Color(0xFF19202D) // Dark blue-grey for text
+val LightBlueOnSurface = Color(0xFF19202D)
+val LightBlueOnSurfaceVariant = Color(0xFF4A5568)
