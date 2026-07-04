@@ -404,15 +404,12 @@ fun PlayerScreen(
                     
                     val activity = context.findActivity()
                     val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) activity?.isInPictureInPictureMode == true else false
-                    if (!isPip && !controller.playWhenReady) {
-                        controller.stop()
-                    }
+                    // We don't call stop() here anymore. The PlaybackService will handle
+                    // inactivity timeouts (5 mins) to release resources gracefully.
                 }
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 currentController?.let { controller ->
-                    if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
-                        controller.prepare()
-                    }
+                    // No need to prepare() explicitly since we are not stopping the player.
                 }
             }
         }
@@ -486,6 +483,7 @@ fun PlayerScreen(
                 var currentGesture = GestureType.NONE
                 var dragDistanceX = 0f
                 var dragDistanceY = 0f
+                var lastVirtualVolume = -1
                 
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
                 val maxVolume = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
@@ -546,19 +544,21 @@ fun PlayerScreen(
                                     val volumeChange = -(dragDistanceY / size.height) * virtualMaxVolume
                                     val virtualNewVolume = (virtualStartVolume + volumeChange).toInt().coerceIn(0, virtualMaxVolume)
                                     
-                                    val newVolume = virtualNewVolume.coerceAtMost(maxVolume)
-                                    val newBoost = if (virtualNewVolume > maxVolume) {
-                                        ((virtualNewVolume - maxVolume).toFloat() / maxVolume * 1500f).toInt()
-                                    } else {
-                                        0
+                                    if (virtualNewVolume != lastVirtualVolume) {
+                                        lastVirtualVolume = virtualNewVolume
+                                        val newVolume = virtualNewVolume.coerceAtMost(maxVolume)
+                                        val newBoost = if (virtualNewVolume > maxVolume) {
+                                            ((virtualNewVolume - maxVolume).toFloat() / maxVolume * 1500f).toInt()
+                                        } else {
+                                            0
+                                        }
+                                        
+                                        audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, newVolume, 0)
+                                        boostGainMb = newBoost
+                                        val settings = com.example.data.SettingsManager.getInstance(context)
+                                        settings.boostGainMb = newBoost
+                                        com.example.service.PlayerManager.setBoostGain(newBoost)
                                     }
-                                    
-                                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, newVolume, 0)
-                                    boostGainMb = newBoost
-                                    val settings = com.example.data.SettingsManager.getInstance(context)
-                                    settings.boostGainMb = newBoost
-                                    com.example.service.PlayerManager.setBoostGain(newBoost)
-
                                     gestureVolumeRatio = virtualNewVolume.toFloat() / virtualMaxVolume.toFloat()
                                     gestureText = "Volume: ${(gestureVolumeRatio * 200).roundToInt()}%"
                                     change.consume()
@@ -1010,6 +1010,7 @@ fun PlayerScreen(
                                     .height(140.dp)
                                     .width(32.dp)
                                     .pointerInput(Unit) {
+                                        var lastAppliedBrightness = -1f
                                         detectVerticalDragGestures(
                                             onVerticalDrag = { change, dragAmount ->
                                                 change.consume()
@@ -1017,11 +1018,15 @@ fun PlayerScreen(
                                                 val newVal = (brightness + dragRatio).coerceIn(0f, 1f)
                                                 brightnessInteractionTime = System.currentTimeMillis()
                                                 brightness = newVal
-                                                val window = context.findActivity()?.window
-                                                window?.let {
-                                                    val lp = it.attributes
-                                                    lp.screenBrightness = newVal
-                                                    it.attributes = lp
+                                                
+                                                if (kotlin.math.abs(newVal - lastAppliedBrightness) > 0.02f) {
+                                                    lastAppliedBrightness = newVal
+                                                    val window = context.findActivity()?.window
+                                                    window?.let {
+                                                        val lp = it.attributes
+                                                        lp.screenBrightness = newVal
+                                                        it.attributes = lp
+                                                    }
                                                 }
                                             }
                                         )

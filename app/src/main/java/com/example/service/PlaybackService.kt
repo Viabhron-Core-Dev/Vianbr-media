@@ -10,6 +10,10 @@ import com.google.common.util.concurrent.Futures
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import coil.Coil
 import coil.request.ImageRequest
 import android.graphics.drawable.Drawable
@@ -18,6 +22,7 @@ import android.graphics.drawable.BitmapDrawable
 class PlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val inactivityHandler = Handler(Looper.getMainLooper())
     private val INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000L // 5 mins
@@ -27,7 +32,6 @@ class PlaybackService : MediaSessionService() {
             if (!playWhenReady) {
                 stop()
                 clearMediaItems()
-                clearVideoSurface()
             }
         }
     }
@@ -77,8 +81,18 @@ class PlaybackService : MediaSessionService() {
             
             override fun loadBitmap(uri: android.net.Uri): ListenableFuture<android.graphics.Bitmap> {
                 val future = com.google.common.util.concurrent.SettableFuture.create<android.graphics.Bitmap>()
-                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                serviceScope.launch(Dispatchers.IO) {
                     try {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && uri.scheme == "content") {
+                            try {
+                                val bitmap = contentResolver.loadThumbnail(uri, android.util.Size(512, 512), null)
+                                future.set(bitmap)
+                                return@launch
+                            } catch (e: Exception) {
+                                com.example.LogKeeper.log("loadThumbnail failed, falling back to Coil: ${e.message}", "PlaybackService")
+                            }
+                        }
+                        
                         val request = ImageRequest.Builder(this@PlaybackService)
                             .data(uri)
                             .size(512, 512)
@@ -179,11 +193,19 @@ class PlaybackService : MediaSessionService() {
                 ): ListenableFuture<List<MediaItem>> {
                     com.example.LogKeeper.log("onAddMediaItems called with ${mediaItems.size} items", "PlaybackService")
                     val updatedMediaItems = mediaItems.map { mediaItem ->
-                        val uriStr = mediaItem.mediaId
-                        com.example.LogKeeper.log("Transforming mediaItem mediaId to URI: $uriStr", "PlaybackService")
+                        val uriToUse = mediaItem.localConfiguration?.uri?.toString() ?: mediaItem.mediaId
+                        com.example.LogKeeper.log("Transforming mediaItem to use URI: $uriToUse", "PlaybackService")
                         mediaItem.buildUpon()
-                            .setUri(uriStr)
-                            .setMediaMetadata(mediaItem.mediaMetadata.buildUpon().setArtworkUri(android.net.Uri.parse(uriStr)).build())
+                            .setUri(uriToUse)
+                            .setMediaMetadata(
+                                mediaItem.mediaMetadata.buildUpon()
+                                    .apply {
+                                        if (mediaItem.mediaMetadata.artworkUri == null) {
+                                            setArtworkUri(android.net.Uri.parse(uriToUse))
+                                        }
+                                    }
+                                    .build()
+                            )
                             .build()
                     }
                     return Futures.immediateFuture(updatedMediaItems)
@@ -207,6 +229,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         com.example.LogKeeper.log("onDestroy called.", "PlaybackService")
+        serviceScope.cancel()
         mediaSession?.run {
             player.release()
             release()
