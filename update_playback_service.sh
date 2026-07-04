@@ -1,3 +1,5 @@
+#!/bin/bash
+cat << 'INNER_EOF' > app/src/main/java/com/example/service/PlaybackService.kt
 package com.example.service
 
 import androidx.media3.exoplayer.ExoPlayer
@@ -217,3 +219,4 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 }
+INNER_EOF
