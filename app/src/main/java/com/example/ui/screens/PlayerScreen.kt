@@ -683,7 +683,7 @@ fun PlayerScreen(
         ) {
             Box(
                 modifier = Modifier
-                    .padding(top = 8.dp, end = 8.dp)
+                    .padding(end = 8.dp)
             ) {
                 var timeStr by remember { mutableStateOf("") }
                 var batteryPct by remember { mutableStateOf(100) }
@@ -888,22 +888,25 @@ fun PlayerScreen(
                                     
                                     androidx.compose.material3.AlertDialog(
                                         onDismissRequest = { showDetailsDialog = false },
+                                        containerColor = Color(0xFF19202D),
+                                        titleContentColor = Color.White,
+                                        textContentColor = Color.White,
                                         title = { Text("Properties", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
                                         text = { 
                                             Column {
-                                                Text("Name: $detailsName", style = MaterialTheme.typography.bodyLarge)
+                                                Text("Name: $detailsName", style = MaterialTheme.typography.bodyLarge, color = Color.White)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text("Size: $detailsSize", style = MaterialTheme.typography.bodyLarge)
+                                                Text("Size: $detailsSize", style = MaterialTheme.typography.bodyLarge, color = Color.White)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text("Duration: $durationStr", style = MaterialTheme.typography.bodyLarge)
+                                                Text("Duration: $durationStr", style = MaterialTheme.typography.bodyLarge, color = Color.White)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text("Date Added: $detailsDate", style = MaterialTheme.typography.bodyLarge)
+                                                Text("Date Added: $detailsDate", style = MaterialTheme.typography.bodyLarge, color = Color.White)
                                                 Spacer(modifier = Modifier.height(8.dp))
-                                                Text("Path: $detailsPath", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text("Path: $detailsPath", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                                             }
                                         },
                                         confirmButton = {
-                                            androidx.compose.material3.TextButton(onClick = { showDetailsDialog = false }) { Text("OK") }
+                                            androidx.compose.material3.TextButton(onClick = { showDetailsDialog = false }) { Text("OK", color = Color(0xFF2196F3)) }
                                         }
                                     )
                                 }
@@ -1155,7 +1158,7 @@ fun PlayerScreen(
             Card(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF19202D), contentColor = Color.White)
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -1201,7 +1204,7 @@ fun PlayerScreen(
                                             showAudioDialog = false
                                         }.padding(vertical = 12.dp)
                                     ) {
-                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) Color(0xFF2196F3) else Color.White)
                                     }
                                 }
                             }
@@ -1215,15 +1218,15 @@ fun PlayerScreen(
                             showAudioDialog = false
                         }.padding(vertical = 12.dp)
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add More", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Filled.Add, contentDescription = "Add More", tint = Color(0xFF2196F3))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add More...", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text("Add More...", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         androidx.compose.material3.TextButton(onClick = { showAudioDialog = false }) {
-                            Text("Cancel")
+                            Text("Cancel", color = Color.White)
                         }
                     }
                 }
@@ -1236,7 +1239,7 @@ fun PlayerScreen(
             Card(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF19202D), contentColor = Color.White)
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text("Select Subtitles", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -1261,7 +1264,7 @@ fun PlayerScreen(
                                         showSubtitleDialog = false
                                     }.padding(vertical = 12.dp)
                                 ) {
-                                    Text("Off", fontWeight = if (isTextDisabled) FontWeight.Bold else FontWeight.Normal, color = if (isTextDisabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Off", fontWeight = if (isTextDisabled) FontWeight.Bold else FontWeight.Normal, color = if (isTextDisabled) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                             
@@ -1280,7 +1283,7 @@ fun PlayerScreen(
                                             showSubtitleDialog = false
                                         }.padding(vertical = 12.dp)
                                     ) {
-                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) Color(0xFF2196F3) else Color.White)
                                     }
                                 }
                             }
@@ -1294,15 +1297,15 @@ fun PlayerScreen(
                             showSubtitleDialog = false
                         }.padding(vertical = 12.dp)
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add More", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Filled.Add, contentDescription = "Add More", tint = Color(0xFF2196F3))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add More...", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text("Add More...", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         androidx.compose.material3.TextButton(onClick = { showSubtitleDialog = false }) {
-                            Text("Cancel")
+                            Text("Cancel", color = Color.White)
                         }
                     }
                 }
@@ -1317,7 +1320,7 @@ fun PlayerScreen(
                     .fillMaxWidth()
                     .padding(16.dp),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF19202D), contentColor = Color.White)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -1337,7 +1340,7 @@ fun PlayerScreen(
                                 playbackSpeed = Math.round(newSpeed * 10.0f) / 10.0f
                                 mediaController?.setPlaybackSpeed(playbackSpeed)
                             },
-                            modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                            modifier = Modifier.background(Color(0xFF2196F3).copy(alpha = 0.2f), CircleShape)
                         ) {
                             Icon(Icons.Filled.Remove, contentDescription = "Decrease")
                         }
@@ -1350,7 +1353,7 @@ fun PlayerScreen(
                                 playbackSpeed = Math.round(newSpeed * 10.0f) / 10.0f
                                 mediaController?.setPlaybackSpeed(playbackSpeed)
                             },
-                            modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                            modifier = Modifier.background(Color(0xFF2196F3).copy(alpha = 0.2f), CircleShape)
                         ) {
                             Icon(Icons.Filled.Add, contentDescription = "Increase")
                         }
@@ -1393,8 +1396,8 @@ fun PlayerScreen(
                                         playbackSpeed = speed
                                         mediaController?.setPlaybackSpeed(playbackSpeed)
                                     }
-                                    .border(1.dp, if (playbackSpeed == speed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, CircleShape)
-                                    .background(if (playbackSpeed == speed) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                    .border(1.dp, if (playbackSpeed == speed) Color(0xFF2196F3) else MaterialTheme.colorScheme.outline, CircleShape)
+                                    .background(if (playbackSpeed == speed) Color(0xFF2196F3).copy(alpha = 0.2f) else Color.Transparent)
                                     .padding(horizontal = 8.dp, vertical = 6.dp)
                             ) {
                                 Text("${speed}x", style = MaterialTheme.typography.labelMedium)

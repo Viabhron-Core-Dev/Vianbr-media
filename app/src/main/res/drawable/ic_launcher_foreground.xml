@@ -4,25 +4,24 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- White play triangle -->
+    
+    <!-- Drop Shadow for Play Button -->
+    <path
+        android:fillColor="#4D000000"
+        android:pathData="M34,28 L34,88 L86,58 Z" />
+        
+    <!-- Main Play Button - White -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M36,26 L36,82 L84,54 Z"/>
-
-    <!-- "sVl" as three separate letter paths, sky blue, inside triangle -->
-    <!-- s — small rounded s shape -->
+        android:pathData="M32,24 L32,84 L84,54 Z" />
+        
+    <!-- Wave / 'S' Ribbon (Blue) -->
     <path
-        android:fillColor="#0288D1"
-        android:pathData="M46,58 Q44,56 46,54 Q50,52 50,54 Q50,56 46,56 Q44,58 46,60 Q50,62 50,60"/>
-    <!-- V — angled V shape -->
+        android:fillColor="#2196F3"
+        android:pathData="M18,62 C 38,62, 44,42, 64,42 C 72,42, 78,46, 84,54 L 84,62 C 78,54, 72,50, 64,50 C 44,50, 38,70, 18,70 Z" />
+        
+    <!-- Darker Blue Shadow/Secondary Ribbon for depth -->
     <path
-        android:fillColor="#0288D1"
-        android:pathData="M53,52 L56,61 L59,52"/>
-    <!-- l — simple vertical stroke -->
-    <path
-        android:fillColor="#0288D1"
-        android:strokeColor="#0288D1"
-        android:strokeWidth="2"
-        android:pathData="M62,51 L62,61"/>
+        android:fillColor="#1565C0"
+        android:pathData="M64,50 C 44,50, 38,70, 18,70 L 18,78 C 38,78, 44,58, 64,58 C 72,58, 78,62, 84,70 L 84,62 C 78,54, 72,50, 64,50 Z" />
 </vector>
