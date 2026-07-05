@@ -323,6 +323,15 @@ fun PlayerScreen(
         }
         controller.addListener(mainListener)
         
+        val currentVideoSize = controller.videoSize
+        if (currentVideoSize.width > 0 && currentVideoSize.height > 0) {
+            context.findActivity()?.requestedOrientation = if (currentVideoSize.width > currentVideoSize.height) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            }
+        }
+        
         if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
             controller.setMediaItem(MediaItem.Builder().setUri(decodedUri).setMediaId(decodedUri.toString()).build())
             controller.prepare()
@@ -331,8 +340,9 @@ fun PlayerScreen(
             if (lastPos > 0 && !settingsManager.isFinished(decodedUriString)) {
                 controller.seekTo(lastPos)
             }
-        } else if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+        } else if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED || controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
             controller.seekTo(0)
+            controller.prepare()
         }
         
         controller.play()
@@ -442,8 +452,9 @@ fun PlayerScreen(
                 onDoubleTap = {
                     if (isLocked) return@detectTapGestures
                     mediaController?.let { controller ->
-                        if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                        if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED || controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
                             controller.seekTo(0)
+                            controller.prepare()
                             controller.play()
                             showControls = false
                         } else if (controller.isPlaying) {
@@ -579,6 +590,9 @@ fun PlayerScreen(
             update = { view ->
                 view.player = mediaController
                 view.resizeMode = resizeMode
+            },
+            onRelease = { view ->
+                view.player = null
             },
             modifier = Modifier.fillMaxSize().graphicsLayer {
                 scaleX = scale
@@ -1082,8 +1096,9 @@ fun PlayerScreen(
                                 IconButton(
                                     onClick = {
                                         mediaController?.let { controller ->
-                                            if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                            if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED || controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
                                                 controller.seekTo(0)
+                                                controller.prepare()
                                                 controller.play()
                                             } else if (controller.isPlaying) {
                                                 controller.pause()
