@@ -38,6 +38,37 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        
+        try {
+            val defaultProvider = androidx.media3.session.DefaultMediaNotificationProvider(this)
+            setMediaNotificationProvider(object : androidx.media3.session.MediaNotification.Provider {
+                override fun createNotification(
+                    session: MediaSession,
+                    customLayout: com.google.common.collect.ImmutableList<androidx.media3.session.CommandButton>,
+                    actionFactory: androidx.media3.session.MediaNotification.ActionFactory,
+                    onNotificationChangedCallback: androidx.media3.session.MediaNotification.Provider.Callback
+                ): androidx.media3.session.MediaNotification {
+                    try {
+                        val notification = defaultProvider.createNotification(session, customLayout, actionFactory, onNotificationChangedCallback)
+                        com.example.LogKeeper.log("Created MediaNotification successfully.", "PlaybackService")
+                        return notification
+                    } catch(e: Exception) {
+                        com.example.LogKeeper.logError("PlaybackService", "Failed to create MediaNotification", e)
+                        throw e
+                    }
+                }
+                override fun handleCustomCommand(
+                    session: MediaSession,
+                    action: String,
+                    extras: android.os.Bundle
+                ): Boolean {
+                    return defaultProvider.handleCustomCommand(session, action, extras)
+                }
+            })
+        } catch (e: Exception) {
+            com.example.LogKeeper.logError("PlaybackService", "Failed to set up MediaNotificationProvider", e)
+        }
+        
         val settings = com.example.data.SettingsManager.getInstance(this)
         PlayerManager.initialize(this, false)
         
@@ -153,6 +184,7 @@ class PlaybackService : MediaSessionService() {
                     return Futures.immediateFuture(updatedMediaItems)
                 }
             }).build()
+        addSession(mediaSession!!)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {

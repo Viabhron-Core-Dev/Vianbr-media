@@ -442,7 +442,11 @@ fun PlayerScreen(
                 onDoubleTap = {
                     if (isLocked) return@detectTapGestures
                     mediaController?.let { controller ->
-                        if (controller.isPlaying) {
+                        if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                            controller.seekTo(0)
+                            controller.play()
+                            showControls = false
+                        } else if (controller.isPlaying) {
                             controller.pause()
                             showControls = true
                         } else {
@@ -1078,7 +1082,14 @@ fun PlayerScreen(
                                 IconButton(
                                     onClick = {
                                         mediaController?.let { controller ->
-                                            if (controller.isPlaying) controller.pause() else controller.play()
+                                            if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                                controller.seekTo(0)
+                                                controller.play()
+                                            } else if (controller.isPlaying) {
+                                                controller.pause()
+                                            } else {
+                                                controller.play()
+                                            }
                                         }
                                     },
                                     modifier = Modifier.size(56.dp)
