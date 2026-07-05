@@ -113,6 +113,9 @@ class PlaybackService : MediaSessionService() {
                     val customCommands = defaultResult.availableSessionCommands.buildUpon()
                         .add(androidx.media3.session.SessionCommand("ADD_SUBTITLE", android.os.Bundle.EMPTY))
                         .add(androidx.media3.session.SessionCommand("SET_BOOST_GAIN", android.os.Bundle.EMPTY))
+                        .add(androidx.media3.session.SessionCommand("ACTION_CLOSE", android.os.Bundle.EMPTY))
+                        .add(androidx.media3.session.SessionCommand("ACTION_NEXT", android.os.Bundle.EMPTY))
+                        .add(androidx.media3.session.SessionCommand("ACTION_PREV", android.os.Bundle.EMPTY))
                         .build()
                     return MediaSession.ConnectionResult.accept(customCommands, defaultResult.availablePlayerCommands)
                 }
@@ -126,6 +129,24 @@ class PlaybackService : MediaSessionService() {
                     if (customCommand.customAction == "SET_BOOST_GAIN") {
                         val gainMb = args.getInt("gainMb", 0)
                         PlayerManager.setBoostGain(gainMb)
+                        return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
+                    }
+
+                    if (customCommand.customAction == "ACTION_CLOSE") {
+                        val player = session.player
+                        player.stop()
+                        player.clearMediaItems()
+                        stopSelf()
+                        return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
+                    }
+                    if (customCommand.customAction == "ACTION_NEXT") {
+                        val player = session.player
+                        if (player.hasNextMediaItem()) player.seekToNext() else player.seekTo(player.duration.coerceAtLeast(0))
+                        return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
+                    }
+                    if (customCommand.customAction == "ACTION_PREV") {
+                        val player = session.player
+                        if (player.hasPreviousMediaItem()) player.seekToPrevious() else player.seekTo(0)
                         return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
                     }
 
@@ -184,6 +205,27 @@ class PlaybackService : MediaSessionService() {
                     return Futures.immediateFuture(updatedMediaItems)
                 }
             }).build()
+        
+        mediaSession?.setCustomLayout(
+            com.google.common.collect.ImmutableList.of(
+                androidx.media3.session.CommandButton.Builder()
+                    .setDisplayName("Previous")
+                    .setIconResId(android.R.drawable.ic_media_previous)
+                    .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_PREV", android.os.Bundle.EMPTY))
+                    .build(),
+                androidx.media3.session.CommandButton.Builder()
+                    .setDisplayName("Next")
+                    .setIconResId(android.R.drawable.ic_media_next)
+                    .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_NEXT", android.os.Bundle.EMPTY))
+                    .build(),
+                androidx.media3.session.CommandButton.Builder()
+                    .setDisplayName("Close")
+                    .setIconResId(android.R.drawable.ic_menu_close_clear_cancel)
+                    .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_CLOSE", android.os.Bundle.EMPTY))
+                    .build()
+            )
+        )
+        
         addSession(mediaSession!!)
     }
 

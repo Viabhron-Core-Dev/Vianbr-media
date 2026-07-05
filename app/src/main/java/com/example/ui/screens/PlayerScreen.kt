@@ -333,7 +333,47 @@ fun PlayerScreen(
         }
         
         if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
-            controller.setMediaItem(MediaItem.Builder().setUri(decodedUri).setMediaId(decodedUri.toString()).build())
+            val mediaMetadataBuilder = androidx.media3.common.MediaMetadata.Builder()
+            var fileName = decodedUri.lastPathSegment ?: "Unknown"
+            if (decodedUri.scheme == "file") {
+                try { fileName = java.io.File(decodedUri.path!!).name } catch (e: Exception) {}
+            } else if (decodedUri.scheme == "content") {
+                try {
+                    context.contentResolver.query(decodedUri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
+                            if (nameCol != -1) cursor.getString(nameCol)?.let { fileName = it }
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+            mediaMetadataBuilder.setTitle(fileName)
+            mediaMetadataBuilder.setDisplayTitle(fileName)
+            
+            try {
+                val retriever = android.media.MediaMetadataRetriever()
+                retriever.setDataSource(context, decodedUri)
+                val art = retriever.embeddedPicture
+                if (art != null) {
+                    mediaMetadataBuilder.setArtworkData(art, androidx.media3.common.MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                } else {
+                    val frame = retriever.getFrameAtTime(0)
+                    if (frame != null) {
+                        val stream = java.io.ByteArrayOutputStream()
+                        frame.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, stream)
+                        mediaMetadataBuilder.setArtworkData(stream.toByteArray(), androidx.media3.common.MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                    }
+                }
+                retriever.release()
+            } catch (e: Exception) {}
+
+            val mediaItem = MediaItem.Builder()
+                .setUri(decodedUri)
+                .setMediaId(decodedUri.toString())
+                .setMediaMetadata(mediaMetadataBuilder.build())
+                .build()
+
+            controller.setMediaItem(mediaItem)
             controller.prepare()
             
             val lastPos = settingsManager.getPlaybackPosition(decodedUriString)
