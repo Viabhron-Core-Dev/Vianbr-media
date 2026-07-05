@@ -324,33 +324,15 @@ fun PlayerScreen(
         controller.addListener(mainListener)
         
         if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
-            val mediaViewModel: com.example.ui.screens.MediaViewModel = androidx.lifecycle.ViewModelProvider(context.findActivity() as androidx.activity.ComponentActivity)[com.example.ui.screens.MediaViewModel::class.java]
-            val allFolders = mediaViewModel.mediaFolders.value
-            var foundFolder: com.example.data.MediaFolder? = null
-            var itemIndex = -1
-            
-            for (folder in allFolders) {
-                val idx = folder.mediaItems.indexOfFirst { it.uri.toString() == decodedUri.toString() }
-                if (idx != -1) {
-                    foundFolder = folder
-                    itemIndex = idx
-                    break
-                }
-            }
-            
-            if (foundFolder != null && itemIndex != -1) {
-                val mediaItems = foundFolder.mediaItems.map { MediaItem.Builder().setUri(it.uri).setMediaId(it.uri.toString()).build() }
-                controller.setMediaItems(mediaItems, itemIndex, 0L)
-            } else {
-                controller.setMediaItem(MediaItem.Builder().setUri(decodedUri).setMediaId(decodedUri.toString()).build())
-            }
-            
+            controller.setMediaItem(MediaItem.Builder().setUri(decodedUri).setMediaId(decodedUri.toString()).build())
             controller.prepare()
             
             val lastPos = settingsManager.getPlaybackPosition(decodedUriString)
             if (lastPos > 0 && !settingsManager.isFinished(decodedUriString)) {
                 controller.seekTo(lastPos)
             }
+        } else if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+            controller.seekTo(0)
         }
         
         controller.play()

@@ -65,63 +65,14 @@ class PlaybackService : MediaSessionService() {
             }
         })
         
-        val bitmapLoader = object : androidx.media3.common.util.BitmapLoader {
-            override fun supportsMimeType(mimeType: String): Boolean = true
-            
-            override fun decodeBitmap(data: ByteArray): ListenableFuture<android.graphics.Bitmap> {
-                val future = com.google.common.util.concurrent.SettableFuture.create<android.graphics.Bitmap>()
-                try {
-                    val bitmap = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size)
-                    future.set(bitmap)
-                } catch (e: Exception) {
-                    future.setException(e)
-                }
-                return future
-            }
-            
-            override fun loadBitmap(uri: android.net.Uri): ListenableFuture<android.graphics.Bitmap> {
-                val future = com.google.common.util.concurrent.SettableFuture.create<android.graphics.Bitmap>()
-                serviceScope.launch(Dispatchers.IO) {
-                    try {
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && uri.scheme == "content") {
-                            try {
-                                val bitmap = contentResolver.loadThumbnail(uri, android.util.Size(512, 512), null)
-                                future.set(bitmap)
-                                return@launch
-                            } catch (e: Exception) {
-                                com.example.LogKeeper.log("loadThumbnail failed, falling back to Coil: ${e.message}", "PlaybackService")
-                            }
-                        }
-                        
-                        val request = ImageRequest.Builder(this@PlaybackService)
-                            .data(uri)
-                            .size(512, 512)
-                            .build()
-                        val result = Coil.imageLoader(this@PlaybackService).execute(request)
-                        val drawable: Drawable? = result.drawable
-                        if (drawable is BitmapDrawable) {
-                            future.set(drawable.bitmap)
-                        } else if (drawable != null) {
-                            val w = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 512
-                            val h = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 512
-                            val bitmap = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
-                            val canvas = android.graphics.Canvas(bitmap)
-                            drawable.setBounds(0, 0, w, h)
-                            drawable.draw(canvas)
-                            future.set(bitmap)
-                        } else {
-                            future.setException(Exception("No drawable returned"))
-                        }
-                    } catch (e: Exception) {
-                        future.setException(e)
-                    }
-                }
-                return future
-            }
-        }
 
+        val intent = android.content.Intent(this, com.example.MainActivity::class.java)
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            this, 0, intent,
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+        )
         mediaSession = MediaSession.Builder(this, PlayerManager.exoPlayer!!)
-            .setBitmapLoader(bitmapLoader)
+            .setSessionActivity(pendingIntent)
             .setCallback(object : MediaSession.Callback {
                 override fun onConnect(
                     session: MediaSession,
@@ -197,15 +148,6 @@ class PlaybackService : MediaSessionService() {
                         com.example.LogKeeper.log("Transforming mediaItem to use URI: $uriToUse", "PlaybackService")
                         mediaItem.buildUpon()
                             .setUri(uriToUse)
-                            .setMediaMetadata(
-                                mediaItem.mediaMetadata.buildUpon()
-                                    .apply {
-                                        if (mediaItem.mediaMetadata.artworkUri == null) {
-                                            setArtworkUri(android.net.Uri.parse(uriToUse))
-                                        }
-                                    }
-                                    .build()
-                            )
                             .build()
                     }
                     return Futures.immediateFuture(updatedMediaItems)
