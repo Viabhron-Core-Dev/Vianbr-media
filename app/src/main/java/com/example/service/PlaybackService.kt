@@ -86,6 +86,12 @@ class PlaybackService : MediaSessionService() {
                     else -> "UNKNOWN"
                 }
                 com.example.LogKeeper.log("Playback state changed to: $stateName", "PlaybackService")
+                if (playbackState == Player.STATE_ENDED) {
+                    val player = PlayerManager.exoPlayer
+                    if (player?.repeatMode == Player.REPEAT_MODE_OFF) {
+                        stopSelf()
+                    }
+                }
             }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 if (!playWhenReady) {
@@ -97,7 +103,9 @@ class PlaybackService : MediaSessionService() {
         })
         
 
-        val intent = android.content.Intent(this, com.example.MainActivity::class.java)
+        val intent = android.content.Intent(this, com.example.MainActivity::class.java).apply {
+            action = "com.example.ACTION_OPEN_PLAYER"
+        }
         val pendingIntent = android.app.PendingIntent.getActivity(
             this, 0, intent,
             android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT

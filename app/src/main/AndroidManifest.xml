@@ -76,7 +76,7 @@
             android:name=".EditMediaActivity"
             android:targetActivity=".MainActivity"
             android:label="Edit — Vianbr Media"
-            android:icon="@mipmap/ic_launcher"
+            android:icon="@mipmap/ic_edit_launcher"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

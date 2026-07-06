@@ -110,6 +110,10 @@ class SettingsManager private constructor(context: Context) {
         get() = prefs.getBoolean("has_seen_welcome", false)
         set(value) = prefs.edit().putBoolean("has_seen_welcome", value).apply()
 
+    var audioBoosterEnabled: Boolean
+        get() = prefs.getBoolean("audio_booster_enabled", true)
+        set(value) = prefs.edit().putBoolean("audio_booster_enabled", value).apply()
+        
     var boostGainMb: Int
         get() = prefs.getInt("boost_gain_mb", 0)
         set(value) = prefs.edit().putInt("boost_gain_mb", value).apply()

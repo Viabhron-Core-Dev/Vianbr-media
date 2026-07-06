@@ -74,7 +74,12 @@ class MainActivity : ComponentActivity() {
           Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize()) {
               var initialUris: List<String> = emptyList()
-              if (intent?.action == android.content.Intent.ACTION_VIEW) {
+              if (intent?.action == "com.example.ACTION_OPEN_PLAYER") {
+                  val currentMediaId = com.example.service.PlayerManager.exoPlayer?.currentMediaItem?.mediaId
+                  if (currentMediaId != null) {
+                      initialUris = listOf(currentMediaId)
+                  }
+              } else if (intent?.action == android.content.Intent.ACTION_VIEW) {
                 intent?.data?.let { uri ->
                   initialUris = listOf(uri.toString())
                 }

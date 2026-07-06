@@ -48,6 +48,26 @@ object PlayerManager {
             .setSkipSilenceEnabled(skipSilence)
             .build()
             
+        exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
+                    try {
+                        loudnessEnhancer?.release()
+                        loudnessEnhancer = LoudnessEnhancer(audioSessionId)
+                        val settings = com.example.data.SettingsManager.getInstance(context.applicationContext)
+                        if (settings.audioBoosterEnabled && settings.boostGainMb > 0) {
+                            loudnessEnhancer?.setTargetGain(settings.boostGainMb)
+                            loudnessEnhancer?.enabled = true
+                        } else {
+                            loudnessEnhancer?.enabled = false
+                        }
+                    } catch (e: Exception) {
+                        com.example.LogKeeper.logError("PlayerManager", "Failed to create LoudnessEnhancer on session change", e)
+                    }
+                }
+            }
+        })
+
         exoPlayer?.audioSessionId?.let { sessionId ->
             if (sessionId != C.AUDIO_SESSION_ID_UNSET) {
                 try {
@@ -62,6 +82,15 @@ object PlayerManager {
 
     fun setBoostGain(gainMb: Int) {
         if (gainMb <= 0) {
+            loudnessEnhancer?.enabled = false
+        } else {
+            loudnessEnhancer?.setTargetGain(gainMb)
+            loudnessEnhancer?.enabled = true
+        }
+    }
+    
+    fun applyAudioBoosterSettings(enabled: Boolean, gainMb: Int) {
+        if (!enabled || gainMb <= 0) {
             loudnessEnhancer?.enabled = false
         } else {
             loudnessEnhancer?.setTargetGain(gainMb)

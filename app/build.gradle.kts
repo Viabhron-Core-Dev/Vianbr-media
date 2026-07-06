@@ -11,7 +11,7 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.vianbrmedia.qxpxwq"
+    applicationId = "com.shura.vianbrmedia"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
@@ -119,4 +119,17 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
+}
+
+kotlin {
+    sourceSets.all {
+        languageSettings.optIn("androidx.compose.material3.ExperimentalMaterial3Api")
+    }
+}
+
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        freeCompilerArgs.add("-opt-in=androidx.compose.material3.ExperimentalMaterial3Api")
+    }
 }

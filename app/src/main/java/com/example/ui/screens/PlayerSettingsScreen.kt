@@ -39,6 +39,33 @@ fun PlayerSettingsScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
+            var audioBoosterEnabled by remember { mutableStateOf(settingsManager.audioBoosterEnabled) }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Enable Audio Booster",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "App-wide setting to allow audio volume boosting",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = audioBoosterEnabled,
+                    onCheckedChange = { 
+                        audioBoosterEnabled = it
+                        settingsManager.audioBoosterEnabled = it
+                        com.example.service.PlayerManager.applyAudioBoosterSettings(it, settingsManager.boostGainMb)
+                    }
+                )
+            }
+            
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)

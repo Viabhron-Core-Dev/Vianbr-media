@@ -1,5 +1,7 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.example.ui.screens
 
+import androidx.compose.foundation.layout.heightIn
 import kotlinx.coroutines.launch
 import android.app.Activity
 import android.app.PictureInPictureParams
@@ -144,7 +146,21 @@ fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
     return uri.lastPathSegment?.substringBeforeLast('.') ?: "Unknown"
 }
 
-@OptIn(androidx.media3.common.util.UnstableApi::class)
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun MyModalBottomSheet(
+    onDismissRequest: () -> Unit,
+    sheetState: androidx.compose.material3.SheetState,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
+) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        content = content
+    )
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun PlayerScreen(
     uriString: String,
@@ -202,6 +218,10 @@ fun PlayerScreen(
         var showAudioDialog by remember { mutableStateOf(false) }
         var showSubtitleDialog by remember { mutableStateOf(false) }
         var showTopMenu by remember { mutableStateOf(false) }
+        
+        var subtitleColor by remember { mutableStateOf(androidx.compose.ui.graphics.Color.White) }
+        var subtitleSize by remember { mutableStateOf(16f) }
+        var subtitleDelay by remember { mutableStateOf(0f) }
 
         val audioPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
             contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -229,9 +249,9 @@ fun PlayerScreen(
             val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
             insetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             if (showControls) {
-                insetsController.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                insetsController.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             } else {
-                insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             }
         }
     }
@@ -389,7 +409,7 @@ fun PlayerScreen(
         val savedGain = settingsManager.boostGainMb
         boostGainMb = savedGain
         if (savedGain > 0) {
-            com.example.service.PlayerManager.setBoostGain(savedGain)
+            com.example.service.PlayerManager.applyAudioBoosterSettings(settingsManager.audioBoosterEnabled, savedGain)
         }
         
         val mainListener = object : androidx.media3.common.Player.Listener {
@@ -635,7 +655,7 @@ fun PlayerScreen(
                                         boostGainMb = newBoost
                                         val settings = com.example.data.SettingsManager.getInstance(context)
                                         settings.boostGainMb = newBoost
-                                        com.example.service.PlayerManager.setBoostGain(newBoost)
+                                        com.example.service.PlayerManager.applyAudioBoosterSettings(settings.audioBoosterEnabled, newBoost)
                                     }
                                     gestureVolumeRatio = virtualNewVolume.toFloat() / virtualMaxVolume.toFloat()
                                     gestureText = "Volume: ${(gestureVolumeRatio * 200).roundToInt()}%"
@@ -671,6 +691,24 @@ fun PlayerScreen(
             update = { view ->
                 view.player = mediaController
                 view.resizeMode = resizeMode
+                view.subtitleView?.let { subtitleView ->
+                    val colorInt = android.graphics.Color.argb(
+                        (subtitleColor.alpha * 255).toInt(),
+                        (subtitleColor.red * 255).toInt(),
+                        (subtitleColor.green * 255).toInt(),
+                        (subtitleColor.blue * 255).toInt()
+                    )
+                    val style = androidx.media3.ui.CaptionStyleCompat(
+                        colorInt,
+                        android.graphics.Color.TRANSPARENT,
+                        android.graphics.Color.TRANSPARENT,
+                        androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_DROP_SHADOW,
+                        android.graphics.Color.BLACK,
+                        null
+                    )
+                    subtitleView.setStyle(style)
+                    subtitleView.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, subtitleSize)
+                }
             },
             onRelease = { view ->
                 view.player = null
@@ -707,6 +745,13 @@ fun PlayerScreen(
                             .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
                             .padding(vertical = 12.dp, horizontal = 12.dp)
                     ) {
+                        Text(
+                            text = "${(gestureVolumeRatio * 200).roundToInt()}",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
                         Box(
                             modifier = Modifier
                                 .height(140.dp)
@@ -721,14 +766,7 @@ fun PlayerScreen(
                                     .background(Color(0xFF2196F3), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
                             )
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "${(gestureVolumeRatio * 200).roundToInt()}",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Icon(androidx.compose.material.icons.Icons.Filled.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
                     }
                 }
@@ -764,7 +802,7 @@ fun PlayerScreen(
         ) {
             Box(
                 modifier = Modifier
-                    .padding(end = 8.dp)
+                    .padding(end = 32.dp)
             ) {
                 var timeStr by remember { mutableStateOf("") }
                 var batteryPct by remember { mutableStateOf(100) }
@@ -789,7 +827,7 @@ fun PlayerScreen(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(4.dp)
+                    modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 4.dp, top = 0.dp)
                 ) {
                     Text(
                         text = timeStr,
@@ -997,22 +1035,6 @@ fun PlayerScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                         ) {
-                            IconButton(onClick = {
-                                val nextMode = when (repeatMode) {
-                                    androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
-                                    androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
-                                    else -> androidx.media3.common.Player.REPEAT_MODE_OFF
-                                }
-                                repeatMode = nextMode
-                                mediaController?.repeatMode = nextMode
-                            }) {
-                                val repeatIcon = when (repeatMode) {
-                                    androidx.media3.common.Player.REPEAT_MODE_ONE -> Icons.Filled.RepeatOne
-                                    else -> Icons.Filled.Repeat
-                                }
-                                val repeatTint = if (repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White else Color(0xFF2196F3)
-                                Icon(repeatIcon, contentDescription = "Repeat", tint = repeatTint)
-                            }
                             IconButton(onClick = { 
                                 showBrightnessSlider = !showBrightnessSlider 
                                 if (showBrightnessSlider) {
@@ -1030,12 +1052,6 @@ fun PlayerScreen(
                                 }
                             }) {
                                 Icon(Icons.Filled.ScreenRotation, contentDescription = "Rotation", tint = Color.White)
-                            }
-                            IconButton(onClick = { 
-                                backgroundPlayEnabled = !backgroundPlayEnabled
-                                Toast.makeText(context, "Background play " + if (backgroundPlayEnabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
-                            }) {
-                                Icon(Icons.Filled.Headphones, contentDescription = "Background play", tint = if (backgroundPlayEnabled) Color(0xFF2196F3) else Color.White)
                             }
                             IconButton(onClick = {
                                 val surfaceView = playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView
@@ -1205,6 +1221,28 @@ fun PlayerScreen(
                             // Right alignment
                             Row(modifier = Modifier.align(Alignment.CenterEnd)) {
                                 IconButton(onClick = {
+                                    val nextMode = when (repeatMode) {
+                                        androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
+                                        androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+                                        else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                                    }
+                                    repeatMode = nextMode
+                                    mediaController?.repeatMode = nextMode
+                                }) {
+                                    val repeatIcon = when (repeatMode) {
+                                        androidx.media3.common.Player.REPEAT_MODE_ONE -> Icons.Filled.RepeatOne
+                                        else -> Icons.Filled.Repeat
+                                    }
+                                    val repeatTint = if (repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White else Color(0xFF2196F3)
+                                    Icon(repeatIcon, contentDescription = "Repeat", tint = repeatTint)
+                                }
+                                IconButton(onClick = { 
+                                    backgroundPlayEnabled = !backgroundPlayEnabled
+                                    Toast.makeText(context, "Background play " + if (backgroundPlayEnabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
+                                }) {
+                                    Icon(Icons.Filled.Headphones, contentDescription = "Background play", tint = if (backgroundPlayEnabled) Color(0xFF2196F3) else Color.White)
+                                }
+                                IconButton(onClick = {
                                     resizeMode = when (resizeMode) {
                                         AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
                                         AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
@@ -1246,34 +1284,41 @@ fun PlayerScreen(
     }
 
     if (showAudioDialog) {
-        Dialog(onDismissRequest = { showAudioDialog = false }) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(24.dp)) {
+        MyModalBottomSheet(
+            onDismissRequest = { showAudioDialog = false },
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
                     Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    Text(
-                        text = "Volume Booster: " + if (boostGainMb == 0) "Off" else "+${boostGainMb / 100}dB",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Slider(
-                        value = boostGainMb.toFloat(),
-                        onValueChange = { newVal ->
-                            val newGain = newVal.toInt()
-                            boostGainMb = newGain
-                            val settings = com.example.data.SettingsManager.getInstance(context)
-                            settings.boostGainMb = newGain
-                            com.example.service.PlayerManager.setBoostGain(newGain)
-                        },
-                        valueRange = 0f..1500f,
-                        steps = 14
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    val settings = remember { com.example.data.SettingsManager.getInstance(context) }
+                    if (settings.audioBoosterEnabled) {
+                        Text(
+                            text = "Volume Booster: " + if (boostGainMb == 0) "Off" else "+${boostGainMb / 100}dB",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Slider(
+                            value = boostGainMb.toFloat(),
+                            onValueChange = { newVal ->
+                                val newGain = newVal.toInt()
+                                boostGainMb = newGain
+                                settings.boostGainMb = newGain
+                                com.example.service.PlayerManager.applyAudioBoosterSettings(settings.audioBoosterEnabled, newGain)
+                            },
+                            valueRange = 0f..1500f,
+                            steps = 14
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    } else {
+                        Text(
+                            text = "Volume Booster is disabled in Player Settings.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                     
                     val currentTracks = mediaController?.currentTracks
                     val audioGroups = currentTracks?.groups?.filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO } ?: emptyList()
@@ -1298,9 +1343,8 @@ fun PlayerScreen(
                                     ) {
                                         Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                }
-                            }
-                        }
+        }
+    }
                     }
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -1327,25 +1371,28 @@ fun PlayerScreen(
     }
 
     if (showSubtitleDialog) {
-        Dialog(onDismissRequest = { showSubtitleDialog = false }) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(24.dp)) {
-                    Text("Select Subtitles", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
+        MyModalBottomSheet(
+            onDismissRequest = { showSubtitleDialog = false },
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            var selectedTab by remember { mutableStateOf(0) }
+            Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+                androidx.compose.material3.TabRow(selectedTabIndex = selectedTab) {
+                    androidx.compose.material3.Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Tracks") })
+                    androidx.compose.material3.Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Settings") })
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (selectedTab == 0) {
                     val currentTracks = mediaController?.currentTracks
                     val textGroups = currentTracks?.groups?.filter { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT } ?: emptyList()
                     val trackSelectionParameters = mediaController?.trackSelectionParameters
                     val isTextDisabled = trackSelectionParameters?.disabledTrackTypes?.contains(androidx.media3.common.C.TRACK_TYPE_TEXT) ?: false
-                    
+
                     if (textGroups.isEmpty()) {
                         Text("No subtitles available", style = MaterialTheme.typography.bodyLarge)
                     } else {
-                        androidx.compose.foundation.lazy.LazyColumn {
+                        androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                             item {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().clickable {
@@ -1385,20 +1432,51 @@ fun PlayerScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable {
-                            subtitlePickerLauncher.launch("application/octet-stream") // Subtitle mime type
+                            subtitlePickerLauncher.launch("application/octet-stream")
                             showSubtitleDialog = false
                         }.padding(vertical = 12.dp)
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = "Add More", tint = Color(0xFF2196F3))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add More...", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)
+                        Text("Add Subtitle File...", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        androidx.compose.material3.TextButton(onClick = { showSubtitleDialog = false }) {
-                            Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                        Text("Subtitle Delay (ms): ${subtitleDelay.toInt()}", fontWeight = FontWeight.Bold)
+                        androidx.compose.material3.Slider(
+                            value = subtitleDelay,
+                            onValueChange = { subtitleDelay = it },
+                            valueRange = -5000f..5000f,
+                            steps = 100
+                        )
+                        Text("Delay is not natively supported by this ExoPlayer version without reloading.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Text("Font Size: ${subtitleSize.toInt()}sp", fontWeight = FontWeight.Bold)
+                        androidx.compose.material3.Slider(
+                            value = subtitleSize,
+                            onValueChange = { subtitleSize = it },
+                            valueRange = 8f..48f
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Text("Subtitle Color", fontWeight = FontWeight.Bold)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            val colors = listOf(Color.White, Color.Yellow, Color.Cyan, Color.Green, Color.Magenta)
+                            colors.forEach { c ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(c)
+                                        .border(2.dp, if (subtitleColor == c) Color(0xFF2196F3) else Color.Transparent, CircleShape)
+                                        .clickable { subtitleColor = c }
+                                )
+                            }
                         }
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
             }
@@ -1406,18 +1484,14 @@ fun PlayerScreen(
     }
 
     if (showSpeedDialog) {
-        Dialog(onDismissRequest = { showSpeedDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+        MyModalBottomSheet(
+            onDismissRequest = { showSpeedDialog = false },
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
                     Text("Select playback speed", style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(24.dp))
                     
@@ -1513,9 +1587,8 @@ fun PlayerScreen(
                             }
                         )
                     }
-                }
-            }
         }
+    }
     }
 
     if (showPlayerSettingsDialog) {
