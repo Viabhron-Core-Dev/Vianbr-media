@@ -1,5 +1,6 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.example.ui.screens
+import androidx.compose.foundation.layout.widthIn
 
 import androidx.compose.foundation.layout.heightIn
 import kotlinx.coroutines.launch
@@ -52,6 +53,8 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Screenshot
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
@@ -156,8 +159,19 @@ fun MyModalBottomSheet(
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        content = content
-    )
+        modifier = Modifier.widthIn(max = 400.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Column(
+                modifier = Modifier.widthIn(max = 400.dp).fillMaxWidth()
+            ) {
+                content()
+            }
+        }
+    }
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.media3.common.util.UnstableApi::class)
@@ -368,9 +382,6 @@ fun PlayerScreen(
                 if (found && playlistItems.size > 1) {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                         if (controller.currentMediaItem?.mediaId == decodedUri.toString()) {
-                            // Instead of setting entire items, we can just add the items before and after
-                            // Or use setMediaItems with a known start position and keep playback state.
-                            // ExoPlayer handles setMediaItems(list, index, pos) seamlessly if the item is the same.
                             val currentPos = controller.currentPosition
                             val isPlaying = controller.isPlaying
                             controller.setMediaItems(playlistItems, startIndex, currentPos)
@@ -381,6 +392,8 @@ fun PlayerScreen(
                     }
                 }
             }
+            
+
         } else if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED || controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
             controller.seekTo(0)
             controller.prepare()
@@ -418,6 +431,13 @@ fun PlayerScreen(
                     val currentMode = controller.repeatMode
                     val hasNext = controller.hasNextMediaItem()
                     if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF && !hasNext) {
+                        onNavigateBack()
+                    }
+                }
+            }
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (reason == androidx.media3.common.Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+                    if (controller.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) {
                         onNavigateBack()
                     }
                 }
@@ -1187,9 +1207,7 @@ fun PlayerScreen(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
                                 modifier = Modifier.align(Alignment.Center)
                             ) {
-                                IconButton(onClick = { mediaController?.seekToPrevious() }) {
-                                    Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous", tint = Color.White)
-                                }
+
                                 IconButton(
                                     onClick = {
                                         mediaController?.let { controller ->
@@ -1213,9 +1231,7 @@ fun PlayerScreen(
                                         modifier = Modifier.size(36.dp)
                                     )
                                 }
-                                IconButton(onClick = { mediaController?.seekToNext() }) {
-                                    Icon(Icons.Filled.SkipNext, contentDescription = "Next", tint = Color.White)
-                                }
+
                             }
                             
                             // Right alignment
@@ -1288,7 +1304,7 @@ fun PlayerScreen(
             onDismissRequest = { showAudioDialog = false },
             sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
                     Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(16.dp))
                     
@@ -1489,7 +1505,7 @@ fun PlayerScreen(
             sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                     Text("Select playback speed", style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)

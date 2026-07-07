@@ -99,6 +99,15 @@ class PlaybackService : MediaSessionService() {
                 } else {
                     inactivityHandler.removeCallbacks(releaseRunnable)
                 }
+                
+                if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+                    val player = PlayerManager.exoPlayer
+                    if (player?.repeatMode == Player.REPEAT_MODE_OFF) {
+                        player.stop()
+                        player.clearMediaItems()
+                        stopSelf()
+                    }
+                }
             }
         })
         

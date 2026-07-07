@@ -47,6 +47,8 @@ object PlayerManager {
             .setHandleAudioBecomingNoisy(true)
             .setSkipSilenceEnabled(skipSilence)
             .build()
+        
+        exoPlayer?.pauseAtEndOfMediaItems = true
             
         exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
