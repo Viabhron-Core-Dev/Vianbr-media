@@ -98,7 +98,6 @@ fun MainScreen(
     val playlists by repository.allPlaylists.collectAsStateWithLifecycle(initialValue = emptyList())
 
     var sortOrder by rememberSaveable { mutableStateOf(SortOrder.DATE) }
-    var showSortMenu by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
     var showInfoDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteConfirmDialog by rememberSaveable { mutableStateOf(false) }
@@ -236,16 +235,15 @@ fun MainScreen(
                             Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Playlists")
                         }
                         Box {
-                            IconButton(onClick = { showSortMenu = true }) {
-                                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                            var showOverflowMenu by remember { mutableStateOf(false) }
+                            IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
                             }
-                            DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                                DropdownMenuItem(text = { Text("Sort by Name") }, onClick = { sortOrder = SortOrder.NAME; showSortMenu = false })
-                                DropdownMenuItem(text = { Text("Sort by Date") }, onClick = { sortOrder = SortOrder.DATE; showSortMenu = false })
+                            DropdownMenu(expanded = showOverflowMenu, onDismissRequest = { showOverflowMenu = false }) {
+                                DropdownMenuItem(text = { Text("Sort by Name") }, onClick = { sortOrder = SortOrder.NAME; showOverflowMenu = false })
+                                DropdownMenuItem(text = { Text("Sort by Date") }, onClick = { sortOrder = SortOrder.DATE; showOverflowMenu = false })
+                                DropdownMenuItem(text = { Text("Settings") }, onClick = { showSettingsDialog = true; showOverflowMenu = false })
                             }
-                        }
-                        IconButton(onClick = { showSettingsDialog = true }) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
                         }
                     }
                 }

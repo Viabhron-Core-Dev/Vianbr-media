@@ -37,6 +37,7 @@
             android:name=".BatchActionActivity"
             android:exported="true"
             android:label="Batch Convert — Vianbr Media"
+            android:icon="@mipmap/ic_batch_launcher"
             android:theme="@style/Theme.Transparent">
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
@@ -51,7 +52,7 @@
             android:name=".PlayMediaActivity"
             android:targetActivity=".MainActivity"
             android:label="Play — Vianbr Media"
-            android:icon="@mipmap/ic_launcher"
+            android:icon="@mipmap/ic_play_launcher"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

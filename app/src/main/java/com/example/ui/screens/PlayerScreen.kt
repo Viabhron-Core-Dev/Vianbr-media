@@ -39,6 +39,8 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Headphones
@@ -207,16 +209,31 @@ fun PlayerScreen(
     var flashIsPlaying by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
     
-    LaunchedEffect(showPlayPauseFlash) {
-        if (showPlayPauseFlash) {
-            kotlinx.coroutines.delay(600)
-            showPlayPauseFlash = false
-        }
-    }
+    var abRepeatStart by remember { mutableStateOf<Long?>(null) }
+    var abRepeatEnd by remember { mutableStateOf<Long?>(null) }
+    var sleepTimerEndTime by remember { mutableStateOf<Long?>(null) }
+    var showSleepTimerDialog by remember { mutableStateOf(false) }
     
     LaunchedEffect(mediaController) {
         while (true) {
             isPlaying = mediaController?.isPlaying == true
+            
+            // A-B repeat check
+            if (abRepeatStart != null && abRepeatEnd != null && isPlaying) {
+                val currentPos = mediaController?.currentPosition ?: 0L
+                if (currentPos >= abRepeatEnd!!) {
+                    mediaController?.seekTo(abRepeatStart!!)
+                }
+            }
+            
+            // Sleep timer check
+            if (sleepTimerEndTime != null && isPlaying) {
+                if (System.currentTimeMillis() >= sleepTimerEndTime!!) {
+                    mediaController?.pause()
+                    sleepTimerEndTime = null
+                }
+            }
+            
             kotlinx.coroutines.delay(300)
         }
     }
@@ -757,16 +774,17 @@ fun PlayerScreen(
 
         if (activeGesture != GestureType.NONE && !isInPipMode) {
             if (activeGesture == GestureType.VOLUME) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+                Box(modifier = Modifier.fillMaxSize().padding(top = 64.dp, bottom = 104.dp), contentAlignment = Alignment.CenterStart) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .padding(start = 32.dp)
+                            .fillMaxHeight()
                             .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
                             .padding(vertical = 12.dp, horizontal = 12.dp)
                     ) {
                         Text(
-                            text = "${(gestureVolumeRatio * 200).roundToInt()}",
+                            text = "${(gestureVolumeRatio * 200).roundToInt()}%",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
@@ -774,17 +792,26 @@ fun PlayerScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                         Box(
                             modifier = Modifier
-                                .height(140.dp)
+                                .weight(1f)
                                 .width(4.dp)
                                 .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
                             contentAlignment = Alignment.BottomCenter
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxHeight(gestureVolumeRatio.coerceIn(0f, 1f))
+                                    .fillMaxHeight((gestureVolumeRatio * 2f).coerceIn(0f, 1f))
                                     .width(4.dp)
                                     .background(Color(0xFF2196F3), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
                             )
+                            val whiteRatio = ((gestureVolumeRatio - 0.5f) * 2f).coerceIn(0f, 1f)
+                            if (whiteRatio > 0f) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight(whiteRatio)
+                                        .width(4.dp)
+                                        .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Icon(androidx.compose.material.icons.Icons.Filled.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
@@ -1055,6 +1082,38 @@ fun PlayerScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                         ) {
+                            // A-B Repeat Icon
+                            IconButton(onClick = {
+                                val currentPos = mediaController?.currentPosition ?: 0L
+                                if (abRepeatStart == null) {
+                                    abRepeatStart = currentPos
+                                } else if (abRepeatEnd == null) {
+                                    abRepeatEnd = currentPos
+                                } else {
+                                    abRepeatStart = null
+                                    abRepeatEnd = null
+                                }
+                            }) {
+                                val tint = if (abRepeatStart != null) Color(0xFF2196F3) else Color.White
+                                val text = if (abRepeatStart != null && abRepeatEnd == null) "A" else if (abRepeatEnd != null) "A-B" else ""
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Filled.Loop, contentDescription = "A-B Repeat", tint = tint)
+                                    if (text.isNotEmpty()) {
+                                        Text(
+                                            text = text,
+                                            color = tint,
+                                            fontSize = 8.sp,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                            modifier = Modifier.align(Alignment.BottomEnd)
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            // Sleep Timer Icon
+                            IconButton(onClick = { showSleepTimerDialog = true }) {
+                                Icon(Icons.Filled.Timer, contentDescription = "Sleep Timer", tint = if (sleepTimerEndTime != null) Color(0xFF2196F3) else Color.White)
+                            }
                             IconButton(onClick = { 
                                 showBrightnessSlider = !showBrightnessSlider 
                                 if (showBrightnessSlider) {
@@ -1302,11 +1361,11 @@ fun PlayerScreen(
     if (showAudioDialog) {
         MyModalBottomSheet(
             onDismissRequest = { showAudioDialog = false },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = false)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(8.dp)) {
                     Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     
                     val settings = remember { com.example.data.SettingsManager.getInstance(context) }
                     if (settings.audioBoosterEnabled) {
@@ -1326,14 +1385,14 @@ fun PlayerScreen(
                             valueRange = 0f..1500f,
                             steps = 14
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                     } else {
                         Text(
                             text = "Volume Booster is disabled in Player Settings.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                     
                     val currentTracks = mediaController?.currentTracks
@@ -1363,7 +1422,7 @@ fun PlayerScreen(
     }
                     }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable {
                             audioPickerLauncher.launch("audio/*")
@@ -1375,7 +1434,7 @@ fun PlayerScreen(
                         Text("Add More...", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         androidx.compose.material3.TextButton(onClick = { showAudioDialog = false }) {
                             Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1389,15 +1448,15 @@ fun PlayerScreen(
     if (showSubtitleDialog) {
         MyModalBottomSheet(
             onDismissRequest = { showSubtitleDialog = false },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = false)
         ) {
             var selectedTab by remember { mutableStateOf(0) }
-            Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+            Column(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
                 androidx.compose.material3.TabRow(selectedTabIndex = selectedTab) {
                     androidx.compose.material3.Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Tracks") })
                     androidx.compose.material3.Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Settings") })
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 
                 if (selectedTab == 0) {
                     val currentTracks = mediaController?.currentTracks
@@ -1408,7 +1467,7 @@ fun PlayerScreen(
                     if (textGroups.isEmpty()) {
                         Text("No subtitles available", style = MaterialTheme.typography.bodyLarge)
                     } else {
-                        androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                        androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
                             item {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().clickable {
@@ -1445,7 +1504,7 @@ fun PlayerScreen(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable {
                             subtitlePickerLauncher.launch("application/octet-stream")
@@ -1467,7 +1526,7 @@ fun PlayerScreen(
                         )
                         Text("Delay is not natively supported by this ExoPlayer version without reloading.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                         
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         
                         Text("Font Size: ${subtitleSize.toInt()}sp", fontWeight = FontWeight.Bold)
                         androidx.compose.material3.Slider(
@@ -1476,7 +1535,7 @@ fun PlayerScreen(
                             valueRange = 8f..48f
                         )
                         
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         
                         Text("Subtitle Color", fontWeight = FontWeight.Bold)
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -1492,7 +1551,7 @@ fun PlayerScreen(
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
             }
@@ -1502,14 +1561,14 @@ fun PlayerScreen(
     if (showSpeedDialog) {
         MyModalBottomSheet(
             onDismissRequest = { showSpeedDialog = false },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = false)
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                     Text("Select playback speed", style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1541,7 +1600,7 @@ fun PlayerScreen(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1563,7 +1622,7 @@ fun PlayerScreen(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1587,7 +1646,7 @@ fun PlayerScreen(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
