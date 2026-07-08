@@ -533,6 +533,9 @@ fun PlayerScreen(
                     val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) activity?.isInPictureInPictureMode == true else false
                     // We don't call stop() here anymore. The PlaybackService will handle
                     // inactivity timeouts (5 mins) to release resources gracefully.
+                    if (!isPip && !backgroundPlayEnabledRef.value) {
+                        controller.pause()
+                    }
                 }
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 currentController?.let { controller ->
@@ -1266,6 +1269,26 @@ fun PlayerScreen(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
                                 modifier = Modifier.align(Alignment.Center)
                             ) {
+                            
+                                IconButton(
+                                    onClick = {
+                                        mediaController?.let { controller ->
+                                            if (controller.hasPreviousMediaItem()) {
+                                                controller.seekToPreviousMediaItem()
+                                            } else {
+                                                controller.seekTo(0)
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.size(56.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.SkipPrevious,
+                                        contentDescription = "Previous",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
 
                                 IconButton(
                                     onClick = {
@@ -1286,6 +1309,24 @@ fun PlayerScreen(
                                     Icon(
                                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                                         contentDescription = "Play/Pause",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                                
+                                IconButton(
+                                    onClick = {
+                                        mediaController?.let { controller ->
+                                            if (controller.hasNextMediaItem()) {
+                                                controller.seekToNextMediaItem()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.size(56.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.SkipNext,
+                                        contentDescription = "Next",
                                         tint = Color.White,
                                         modifier = Modifier.size(36.dp)
                                     )
