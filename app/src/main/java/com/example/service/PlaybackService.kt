@@ -233,7 +233,7 @@ class PlaybackService : MediaSessionService() {
         super.onTaskRemoved(rootIntent)
         com.example.LogKeeper.log("onTaskRemoved called, cleaning up.", "PlaybackService")
         val player = mediaSession?.player
-        if (player != null && !player.playWhenReady) {
+        if (player != null && (!player.playWhenReady || player.mediaItemCount == 0 || player.playbackState == androidx.media3.common.Player.STATE_ENDED)) {
             player.stop()
             stopSelf()
         }

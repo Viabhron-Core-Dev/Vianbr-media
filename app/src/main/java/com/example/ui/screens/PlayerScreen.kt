@@ -243,7 +243,9 @@ fun PlayerScreen(
     var offsetY by remember { mutableFloatStateOf(0f) }
     var backgroundPlayEnabled by remember { mutableStateOf(false) }
     val backgroundPlayEnabledRef = androidx.compose.runtime.rememberUpdatedState(backgroundPlayEnabled)
-    var playbackSpeed by remember { mutableFloatStateOf(1f) }
+    val settingsManager = com.example.data.SettingsManager.getInstance(context)
+    val decodedUriStringForInit = remember(uriString) { String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)) }
+    var playbackSpeed by remember { mutableFloatStateOf(settingsManager.getPlaybackSpeed(decodedUriStringForInit)) }
     var skipSilence by remember { mutableStateOf(false) }
     var repeatMode by remember { androidx.compose.runtime.mutableIntStateOf(androidx.media3.common.Player.REPEAT_MODE_OFF) }
         var showSpeedDialog by remember { mutableStateOf(false) }
@@ -442,8 +444,58 @@ fun PlayerScreen(
         if (savedGain > 0) {
             com.example.service.PlayerManager.applyAudioBoosterSettings(settingsManager.audioBoosterEnabled, savedGain)
         }
+        controller.setPlaybackSpeed(playbackSpeed)
         
         val mainListener = object : androidx.media3.common.Player.Listener {
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                // Restore track selection
+                val audioTrackIdx = settingsManager.getTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_AUDIO)
+                val subtitleTrackIdx = settingsManager.getTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT)
+                
+                var builder = controller.trackSelectionParameters.buildUpon()
+                var changed = false
+                
+                if (audioTrackIdx != -1) {
+                    val audioGroups = tracks.groups.filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+                    var found = false
+                    var totalIdx = 0
+                    for (group in audioGroups) {
+                        for (i in 0 until group.length) {
+                            if (totalIdx == audioTrackIdx) {
+                                builder.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, i))
+                                changed = true
+                                found = true
+                                break
+                            }
+                            totalIdx++
+                        }
+                        if (found) break
+                    }
+                }
+                
+                if (subtitleTrackIdx != -1) {
+                    val subtitleGroups = tracks.groups.filter { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT }
+                    var found = false
+                    var totalIdx = 0
+                    for (group in subtitleGroups) {
+                        for (i in 0 until group.length) {
+                            if (totalIdx == subtitleTrackIdx) {
+                                builder.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                                builder.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, i))
+                                changed = true
+                                found = true
+                                break
+                            }
+                            totalIdx++
+                        }
+                        if (found) break
+                    }
+                }
+                
+                if (changed) {
+                    controller.trackSelectionParameters = builder.build()
+                }
+            }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
                     val currentMode = controller.repeatMode
@@ -559,7 +611,8 @@ fun PlayerScreen(
                 val dur = controller.duration
                 com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPos, dur)
                 if (!backgroundPlayEnabledRef.value) {
-                    controller.pause()
+                    controller.stop()
+                    controller.clearMediaItems()
                 }
             }
         }
@@ -1246,7 +1299,7 @@ fun PlayerScreen(
                             .windowInsetsPadding(WindowInsets.systemBars)
                             .padding(bottom = 4.dp)
                     ) {
-                        PlaybackProgressRow(
+                        com.example.ui.screens.PlaybackProgressRow(
                             mediaController = mediaController,
                             abRepeatStart = abRepeatStart,
                             abRepeatEnd = abRepeatEnd,
@@ -1449,6 +1502,12 @@ fun PlayerScreen(
                                             val builder = mediaController?.trackSelectionParameters?.buildUpon()
                                             builder?.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
                                             builder?.let { mediaController?.trackSelectionParameters = it.build() }
+                                            var totalIdx = 0
+                                            for (g in 0 until groupIndex) {
+                                                totalIdx += audioGroups[g].length
+                                            }
+                                            totalIdx += trackIndex
+                                            settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_AUDIO, totalIdx)
                                             showAudioDialog = false
                                         }.padding(vertical = 12.dp)
                                     ) {
@@ -1511,6 +1570,7 @@ fun PlayerScreen(
                                         builder?.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
                                         builder?.clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
                                         builder?.let { mediaController?.trackSelectionParameters = it.build() }
+                                        settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT, -1)
                                         showSubtitleDialog = false
                                     }.padding(vertical = 12.dp)
                                 ) {
@@ -1530,6 +1590,12 @@ fun PlayerScreen(
                                             builder?.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
                                             builder?.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
                                             builder?.let { mediaController?.trackSelectionParameters = it.build() }
+                                            var totalIdx = 0
+                                            for (g in 0 until groupIndex) {
+                                                totalIdx += textGroups[g].length
+                                            }
+                                            totalIdx += trackIndex
+                                            settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT, totalIdx)
                                             showSubtitleDialog = false
                                         }.padding(vertical = 12.dp)
                                     ) {
@@ -1616,6 +1682,7 @@ fun PlayerScreen(
                                 val newSpeed = maxOf(0.1f, playbackSpeed - 0.1f)
                                 playbackSpeed = Math.round(newSpeed * 10.0f) / 10.0f
                                 mediaController?.setPlaybackSpeed(playbackSpeed)
+                                settingsManager.savePlaybackSpeed(decodedUriString, playbackSpeed)
                             },
                             modifier = Modifier.background(Color(0xFF2196F3).copy(alpha = 0.2f), CircleShape)
                         ) {
@@ -1629,6 +1696,7 @@ fun PlayerScreen(
                                 val newSpeed = minOf(3.0f, playbackSpeed + 0.1f)
                                 playbackSpeed = Math.round(newSpeed * 10.0f) / 10.0f
                                 mediaController?.setPlaybackSpeed(playbackSpeed)
+                                settingsManager.savePlaybackSpeed(decodedUriString, playbackSpeed)
                             },
                             modifier = Modifier.background(Color(0xFF2196F3).copy(alpha = 0.2f), CircleShape)
                         ) {
@@ -1647,12 +1715,14 @@ fun PlayerScreen(
                             onSpeedChange = { newSpeed ->
                                 playbackSpeed = newSpeed
                                 mediaController?.setPlaybackSpeed(newSpeed)
+                                settingsManager.savePlaybackSpeed(decodedUriString, newSpeed)
                             },
                             modifier = Modifier.weight(1f)
                         )
                         IconButton(onClick = { 
                             playbackSpeed = 1.0f
                             mediaController?.setPlaybackSpeed(playbackSpeed)
+                            settingsManager.savePlaybackSpeed(decodedUriString, playbackSpeed)
                         }) {
                             Icon(Icons.Filled.Restore, contentDescription = "Reset")
                         }
@@ -1672,6 +1742,7 @@ fun PlayerScreen(
                                     .clickable {
                                         playbackSpeed = speed
                                         mediaController?.setPlaybackSpeed(playbackSpeed)
+                                        settingsManager.savePlaybackSpeed(decodedUriString, playbackSpeed)
                                     }
                                     .border(1.dp, if (playbackSpeed == speed) Color(0xFF2196F3) else MaterialTheme.colorScheme.outline, CircleShape)
                                     .background(if (playbackSpeed == speed) Color(0xFF2196F3).copy(alpha = 0.2f) else Color.Transparent)

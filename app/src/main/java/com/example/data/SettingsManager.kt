@@ -87,6 +87,22 @@ class SettingsManager private constructor(context: Context) {
             .apply()
     }
 
+    fun savePlaybackSpeed(uri: String, speed: Float) {
+        prefs.edit().putFloat("speed_$uri", speed).apply()
+    }
+
+    fun getPlaybackSpeed(uri: String): Float {
+        return prefs.getFloat("speed_$uri", 1.0f)
+    }
+
+    fun saveTrackSelection(uri: String, trackType: Int, trackIndex: Int) {
+        prefs.edit().putInt("track_${trackType}_$uri", trackIndex).apply()
+    }
+
+    fun getTrackSelection(uri: String, trackType: Int): Int {
+        return prefs.getInt("track_${trackType}_$uri", -1)
+    }
+
     fun getLastPlayedTime(uri: String): Long {
         return prefs.getLong("time_$uri", 0L)
     }
