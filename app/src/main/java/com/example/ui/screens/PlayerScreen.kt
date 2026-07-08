@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -164,7 +165,7 @@ fun MyModalBottomSheet(
         modifier = Modifier.widthIn(max = 400.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Column(
@@ -487,37 +488,33 @@ fun PlayerScreen(
         
         val pipListener = object : androidx.media3.common.Player.Listener {
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    try {
-                        val width = videoSize.width
-                        val height = videoSize.height
-                        if (width > 0 && height > 0) {
-                            val aspect = width.toFloat() / height.toFloat()
-                            val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
-                            context.findActivity()?.setPictureInPictureParams(
-                                PictureInPictureParams.Builder()
-                                    .setAutoEnterEnabled(true)
-                                    .setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
-                                    .build()
-                            )
-                        }
-                    } catch(e: Exception) {}
+                PipHelper.updatePipParams(context, controller, videoSize.width, videoSize.height)
+            }
+            override fun onEvents(player: androidx.media3.common.Player, events: androidx.media3.common.Player.Events) {
+                if (events.contains(androidx.media3.common.Player.EVENT_IS_PLAYING_CHANGED) || events.contains(androidx.media3.common.Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+                    PipHelper.updatePipParams(context, player, player.videoSize.width, player.videoSize.height)
                 }
             }
         }
         controller.addListener(pipListener)
+        PipHelper.updatePipParams(context, controller, controller.videoSize.width, controller.videoSize.height)
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.findActivity()?.setPictureInPictureParams(
-                PictureInPictureParams.Builder()
-                    .setAutoEnterEnabled(true)
-                    .build()
-            )
-        }
+        val pipReceiver = PipActionReceiver(controller)
+        val filter = android.content.IntentFilter(PipActionReceiver.ACTION_PIP_CONTROL)
+        androidx.core.content.ContextCompat.registerReceiver(
+            context,
+            pipReceiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+
         
         onDispose {
             controller.removeListener(mainListener)
             controller.removeListener(pipListener)
+            try {
+                context.unregisterReceiver(pipReceiver)
+            } catch(e: Exception) {}
         }
     }
 
@@ -774,22 +771,23 @@ fun PlayerScreen(
 
         if (activeGesture != GestureType.NONE && !isInPipMode) {
             if (activeGesture == GestureType.VOLUME) {
-                Box(modifier = Modifier.fillMaxSize().padding(top = 64.dp, bottom = 104.dp), contentAlignment = Alignment.CenterStart) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
-                            .padding(start = 32.dp)
-                            .fillMaxHeight()
-                            .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-                            .padding(vertical = 12.dp, horizontal = 12.dp)
+                            .padding(start = 24.dp)
+                            .height(160.dp)
+                            .width(42.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(21.dp))
+                            .padding(vertical = 10.dp)
                     ) {
                         Text(
                             text = "${(gestureVolumeRatio * 200).roundToInt()}%",
                             color = Color.White,
-                            fontSize = 12.sp,
+                            fontSize = 10.sp,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -813,8 +811,8 @@ fun PlayerScreen(
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Icon(androidx.compose.material.icons.Icons.Filled.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Icon(androidx.compose.material.icons.Icons.Filled.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                 }
             } else if (activeGesture == GestureType.SEEK) {
@@ -1246,7 +1244,9 @@ fun PlayerScreen(
                             .padding(bottom = 4.dp)
                     ) {
                         PlaybackProgressRow(
-                            mediaController = mediaController, 
+                            mediaController = mediaController,
+                            abRepeatStart = abRepeatStart,
+                            abRepeatEnd = abRepeatEnd,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                         )
                         
@@ -1334,15 +1334,10 @@ fun PlayerScreen(
                                 IconButton(onClick = {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                         try {
-                                            val builder = PictureInPictureParams.Builder()
-                                            val width = mediaController?.videoSize?.width
-                                            val height = mediaController?.videoSize?.height
-                                            if (width != null && height != null && width > 0 && height > 0) {
-                                                val aspect = width.toFloat() / height.toFloat()
-                                                val validAspect = aspect.coerceIn(10000f/23900f, 23900f/10000f)
-                                                builder.setAspectRatio(android.util.Rational((validAspect * 10000).toInt(), 10000))
-                                            }
-                                            context.findActivity()?.enterPictureInPictureMode(builder.build())
+                                            val width = mediaController?.videoSize?.width ?: 0
+                                            val height = mediaController?.videoSize?.height ?: 0
+                                            val params = PipHelper.buildPipParams(context, mediaController, width, height)
+                                            context.findActivity()?.enterPictureInPictureMode(params)
                                         } catch (e: Exception) {
                                             // Ignore
                                         }
@@ -1361,7 +1356,7 @@ fun PlayerScreen(
     if (showAudioDialog) {
         MyModalBottomSheet(
             onDismissRequest = { showAudioDialog = false },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = false)
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
             Column(modifier = Modifier.padding(8.dp)) {
                     Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -1448,7 +1443,7 @@ fun PlayerScreen(
     if (showSubtitleDialog) {
         MyModalBottomSheet(
             onDismissRequest = { showSubtitleDialog = false },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = false)
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
             var selectedTab by remember { mutableStateOf(0) }
             Column(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
@@ -1561,7 +1556,7 @@ fun PlayerScreen(
     if (showSpeedDialog) {
         MyModalBottomSheet(
             onDismissRequest = { showSpeedDialog = false },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = false)
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
             Column(
                 modifier = Modifier.padding(8.dp),
@@ -1673,6 +1668,42 @@ fun PlayerScreen(
         ) {
             com.example.ui.screens.PlayerSettingsScreen(onNavigateBack = { showPlayerSettingsDialog = false })
         }
+    }
+
+    if (showSleepTimerDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showSleepTimerDialog = false },
+            title = { Text("Sleep Timer") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val options = listOf(
+                        "Off" to null,
+                        "15 minutes" to 15 * 60 * 1000L,
+                        "30 minutes" to 30 * 60 * 1000L,
+                        "60 minutes" to 60 * 60 * 1000L,
+                        "End of video" to (mediaController?.duration?.let { dur -> if (dur > 0) (dur - (mediaController?.currentPosition ?: 0)) else null })
+                    )
+                    options.forEach { (label, duration) ->
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                if (duration == null) {
+                                    sleepTimerEndTime = null
+                                } else {
+                                    sleepTimerEndTime = System.currentTimeMillis() + duration
+                                }
+                                showSleepTimerDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(label, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showSleepTimerDialog = false }) { Text("Close", color = Color(0xFF2196F3)) }
+            }
+        )
     }
 }
 

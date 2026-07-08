@@ -18,3 +18,9 @@
 - Grouped "Sort" and "Settings" actions into a 3-dots overflow menu in the MainScreen top app bar.
 - Added a "Batch Convert" launcher alias with a layers/stack icon.
 - Implemented A-B Repeat and Sleep Timer functionality in the player.
+- Fixed player bottom sheet panels appearing half hidden by forcing them to fully expand and adding navigation bar padding.
+- Restored skip previous and skip next buttons to playback center alignment.
+- Adjusted brightness slider to use a native material slider for direct horizontal drag control instead of capturing vertical screen-wide swipe gestures.
+- Corrected Sleep Timer Dialog injection in the compose hierarchy.
+- Added visual markers for A-B repeat points on the playback progress timeline slider.
+- Reduced size and length of the on-screen volume gesture slider to avoid overlapping topbar icons.

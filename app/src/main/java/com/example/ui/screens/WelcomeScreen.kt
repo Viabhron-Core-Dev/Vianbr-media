@@ -38,7 +38,7 @@ fun WelcomeScreen(onPermissionsGranted: () -> Unit, onSkip: () -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Welcome to Vianbr Play",
+            text = "Welcome to Vianbhr Media",
             style = MaterialTheme.typography.displaySmall,
             textAlign = TextAlign.Center
         )

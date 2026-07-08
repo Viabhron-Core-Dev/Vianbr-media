@@ -3,45 +3,30 @@ import re
 with open("app/src/main/java/com/example/service/PlayerManager.kt", "r") as f:
     content = f.read()
 
-# Add listener
-listener_code = """        exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
-            override fun onAudioSessionIdChanged(audioSessionId: Int) {
-                if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
-                    try {
-                        loudnessEnhancer?.release()
-                        loudnessEnhancer = LoudnessEnhancer(audioSessionId)
-                        val settings = com.example.data.SettingsManager.getInstance(context.applicationContext)
-                        if (settings.audioBoosterEnabled && settings.boostGainMb > 0) {
-                            loudnessEnhancer?.setTargetGain(settings.boostGainMb)
-                            loudnessEnhancer?.enabled = true
-                        } else {
-                            loudnessEnhancer?.enabled = false
-                        }
-                    } catch (e: Exception) {
-                        com.example.LogKeeper.logError("PlayerManager", "Failed to create LoudnessEnhancer on session change", e)
-                    }
+target = """        exoPlayer = ExoPlayer.Builder(context.applicationContext)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
+            .setSeekBackIncrementMs(10000)"""
+
+replacement = """        val settings = com.example.data.SettingsManager.getInstance(context.applicationContext)
+        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(context.applicationContext)
+            .setEnableDecoderFallback(true)
+            .setExtensionRendererMode(
+                when (settings.decoderPriority) {
+                    0 -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
+                    1 -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                    2 -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+                    else -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
                 }
-            }
-        })
+            )
 
-"""
+        exoPlayer = ExoPlayer.Builder(context.applicationContext)
+            .setRenderersFactory(renderersFactory)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
+            .setSeekBackIncrementMs(10000)"""
 
-content = content.replace("        exoPlayer?.audioSessionId?.let { sessionId ->", listener_code + "        exoPlayer?.audioSessionId?.let { sessionId ->")
-
-# Update setBoostGain to use context for settings
-set_boost = """    fun setBoostGain(gainMb: Int) {
-        val appCtx = com.example.MyApplication.appContext
-        val settings = if (appCtx != null) com.example.data.SettingsManager.getInstance(appCtx) else null
-        val enabled = settings?.audioBoosterEnabled ?: true
-        if (gainMb <= 0 || !enabled) {
-            loudnessEnhancer?.enabled = false
-        } else {
-            loudnessEnhancer?.setTargetGain(gainMb)
-            loudnessEnhancer?.enabled = true
-        }
-    }"""
-
-content = re.sub(r"    fun setBoostGain\(gainMb: Int\) \{.*?\n    \}", set_boost, content, flags=re.DOTALL)
+content = content.replace(target, replacement)
 
 with open("app/src/main/java/com/example/service/PlayerManager.kt", "w") as f:
     f.write(content)

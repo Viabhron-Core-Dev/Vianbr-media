@@ -32,7 +32,20 @@ object PlayerManager {
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
 
+        val settings = com.example.data.SettingsManager.getInstance(context.applicationContext)
+        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(context.applicationContext)
+            .setEnableDecoderFallback(true)
+            .setExtensionRendererMode(
+                when (settings.decoderPriority) {
+                    0 -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
+                    1 -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                    2 -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+                    else -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                }
+            )
+
         exoPlayer = ExoPlayer.Builder(context.applicationContext)
+            .setRenderersFactory(renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
             .setSeekBackIncrementMs(10000)

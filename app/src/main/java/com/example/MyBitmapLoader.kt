@@ -25,15 +25,21 @@ class MyBitmapLoader(val context: Context) : BitmapLoader {
         val future = SettableFuture.create<Bitmap>()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val req = ImageRequest.Builder(context).data(uri).size(512).videoFrameMillis(0).build()
+                com.example.LogKeeper.log("MyBitmapLoader: Loading bitmap for uri: $uri", "MyBitmapLoader")
+                val req = ImageRequest.Builder(context).data(uri).size(512).build()
                 val result = context.imageLoader.execute(req)
                 val dr = result.drawable
                 if (dr is android.graphics.drawable.BitmapDrawable) {
+                    com.example.LogKeeper.log("MyBitmapLoader: Success", "MyBitmapLoader")
                     future.set(dr.bitmap)
                 } else {
-                    future.setException(Exception("err"))
+                    com.example.LogKeeper.logError("MyBitmapLoader", "Result is not BitmapDrawable: ${dr?.javaClass?.name}", Exception("Not BitmapDrawable"))
+                    future.setException(Exception("Not BitmapDrawable: ${dr?.javaClass?.name}"))
                 }
-            } catch(e: Exception) { future.setException(e) }
+            } catch(e: Exception) { 
+                com.example.LogKeeper.logError("MyBitmapLoader", "Exception loading bitmap: ${e.message}", e)
+                future.setException(e) 
+            }
         }
         return future
     }

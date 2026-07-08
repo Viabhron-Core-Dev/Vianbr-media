@@ -25,6 +25,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "My Application"
+rootProject.name = "Vianbhr Media"
 
 include(":app")

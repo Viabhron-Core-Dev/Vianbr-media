@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
     coil.Coil.setImageLoader(
         coil.ImageLoader.Builder(this)
             .components {
-                add(coil.decode.VideoFrameDecoder.Factory())
+                add(com.example.VideoThumbnailFetcher.Factory())
             }
             .memoryCache {
                 coil.memory.MemoryCache.Builder(this)

@@ -183,7 +183,7 @@ fun MainScreen(
                     } else if (isMultiSelectMode) {
                         Text("${selectedMediaItems.size}/${selectedFolder?.mediaItems?.size ?: 0} Selected")
                     } else {
-                        Text(selectedFolder?.name ?: "Vianbr Play")
+                        Text(selectedFolder?.name ?: "Vianbhr Media")
                     }
                 },
                 navigationIcon = {
@@ -446,7 +446,7 @@ fun MainScreen(
                                                 model = ImageRequest.Builder(context)
                                                     .data(media.uri)
                                                     .size(200)
-                                                    .videoFrameMillis(0) // Fast load first frame
+                                                    
                                                     .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                                                     .diskCachePolicy(coil.request.CachePolicy.ENABLED)
                                                     .crossfade(true)
