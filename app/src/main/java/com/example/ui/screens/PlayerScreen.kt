@@ -501,6 +501,11 @@ fun PlayerScreen(
                     val currentMode = controller.repeatMode
                     val hasNext = controller.hasNextMediaItem()
                     if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF && !hasNext) {
+                        if (!backgroundPlayEnabledRef.value) {
+                            try {
+                                context.stopService(android.content.Intent(context, com.example.service.PlaybackService::class.java))
+                            } catch (e: Exception) {}
+                        }
                         onNavigateBack()
                     }
                 }
@@ -613,6 +618,11 @@ fun PlayerScreen(
                 if (!backgroundPlayEnabledRef.value) {
                     controller.stop()
                     controller.clearMediaItems()
+                    try {
+                        context.stopService(android.content.Intent(context, com.example.service.PlaybackService::class.java))
+                    } catch (e: Exception) {
+                        com.example.LogKeeper.logError("PlayerScreen", "Failed to stop PlaybackService", e)
+                    }
                 }
             }
         }
@@ -1431,10 +1441,21 @@ fun PlayerScreen(
                                             val width = mediaController?.videoSize?.width ?: 0
                                             val height = mediaController?.videoSize?.height ?: 0
                                             val params = PipHelper.buildPipParams(context, mediaController, width, height)
-                                            context.findActivity()?.enterPictureInPictureMode(params)
+                                            val activity = context.findActivity()
+                                            if (activity != null) {
+                                                val entered = activity.enterPictureInPictureMode(params)
+                                                com.example.LogKeeper.log("PiP enter result: $entered", "PlayerScreen")
+                                                if (!entered) {
+                                                    com.example.LogKeeper.logError("PlayerScreen", "enterPictureInPictureMode returned false", null)
+                                                }
+                                            } else {
+                                                com.example.LogKeeper.logError("PlayerScreen", "Activity is null for PiP", null)
+                                            }
                                         } catch (e: Exception) {
-                                            // Ignore
+                                            com.example.LogKeeper.logError("PlayerScreen", "Exception entering PiP", e)
                                         }
+                                    } else {
+                                        com.example.LogKeeper.logError("PlayerScreen", "PiP not supported on this SDK", null)
                                     }
                                 }) {
                                     Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "PiP", tint = Color.White)
