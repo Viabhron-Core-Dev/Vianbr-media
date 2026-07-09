@@ -208,6 +208,13 @@ fun PlayerScreen(
     var seekOffsetSec by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var showPlayPauseFlash by remember { mutableStateOf(false) }
     var flashIsPlaying by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(showPlayPauseFlash) {
+        if (showPlayPauseFlash) {
+            kotlinx.coroutines.delay(400)
+            showPlayPauseFlash = false
+        }
+    }
     var isPlaying by remember { mutableStateOf(false) }
     
     var abRepeatStart by remember { mutableStateOf<Long?>(null) }
