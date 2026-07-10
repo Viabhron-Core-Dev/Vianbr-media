@@ -508,11 +508,7 @@ fun PlayerScreen(
                     val currentMode = controller.repeatMode
                     val hasNext = controller.hasNextMediaItem()
                     if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF && !hasNext) {
-                        if (!backgroundPlayEnabledRef.value) {
-                            try {
-                                context.stopService(android.content.Intent(context, com.example.service.PlaybackService::class.java))
-                            } catch (e: Exception) {}
-                        }
+                        // Service will stop itself when STATE_ENDED
                         onNavigateBack()
                     }
                 }
@@ -623,13 +619,8 @@ fun PlayerScreen(
                 val dur = controller.duration
                 com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPos, dur)
                 if (!backgroundPlayEnabledRef.value) {
-                    controller.stop()
                     controller.clearMediaItems()
-                    try {
-                        context.stopService(android.content.Intent(context, com.example.service.PlaybackService::class.java))
-                    } catch (e: Exception) {
-                        com.example.LogKeeper.logError("PlayerScreen", "Failed to stop PlaybackService", e)
-                    }
+                    controller.stop()
                 }
             }
         }

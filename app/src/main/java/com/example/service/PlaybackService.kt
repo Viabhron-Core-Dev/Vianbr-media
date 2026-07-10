@@ -24,17 +24,7 @@ class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    private val inactivityHandler = Handler(Looper.getMainLooper())
-    private val INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000L // 5 mins
-    private val releaseRunnable = Runnable {
-        com.example.LogKeeper.log("Inactivity timeout reached, releasing ExoPlayer hardware resources.", "PlaybackService")
-        PlayerManager.exoPlayer?.run {
-            if (!playWhenReady) {
-                stop()
-                clearMediaItems()
-            }
-        }
-    }
+    // Removed inactivity timeout
 
     override fun onCreate() {
         super.onCreate()
@@ -91,15 +81,14 @@ class PlaybackService : MediaSessionService() {
                     if (player?.repeatMode == Player.REPEAT_MODE_OFF) {
                         stopSelf()
                     }
+                } else if (playbackState == Player.STATE_IDLE) {
+                    val player = PlayerManager.exoPlayer
+                    if (player != null && player.mediaItemCount == 0) {
+                        stopSelf()
+                    }
                 }
             }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                if (!playWhenReady) {
-                    inactivityHandler.postDelayed(releaseRunnable, INACTIVITY_TIMEOUT_MS)
-                } else {
-                    inactivityHandler.removeCallbacks(releaseRunnable)
-                }
-                
                 if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
                     val player = PlayerManager.exoPlayer
                     if (player?.repeatMode == Player.REPEAT_MODE_OFF) {
@@ -243,12 +232,11 @@ class PlaybackService : MediaSessionService() {
         com.example.LogKeeper.log("onDestroy called.", "PlaybackService")
         serviceScope.cancel()
         mediaSession?.run {
-            player.release()
+            // Do NOT release the player here, so it can survive activity recreation
+            // and rapid back/forward navigation.
             release()
         }
         mediaSession = null
-        PlayerManager.release()
-        inactivityHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
 }
