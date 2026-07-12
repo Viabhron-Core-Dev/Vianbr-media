@@ -565,7 +565,7 @@ fun PlayerScreen(
             context,
             pipReceiver,
             filter,
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+            androidx.core.content.ContextCompat.RECEIVER_EXPORTED
         )
 
         
@@ -1434,26 +1434,45 @@ fun PlayerScreen(
                                     Icon(resizeIcon, contentDescription = "Aspect Ratio", tint = Color.White)
                                 }
                                 IconButton(onClick = {
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    val appOps = context.getSystemService(android.content.Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+                                    val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                        appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE, android.os.Process.myUid(), context.packageName)
+                                    } else {
+                                        appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE, android.os.Process.myUid(), context.packageName)
+                                    }
+                                    
+                                    if (mode != android.app.AppOpsManager.MODE_ALLOWED) {
+                                        com.example.LogKeeper.log("PiP permission not granted, redirecting to settings", "PlayerScreen")
+                                        val intent = android.content.Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS").apply {
+                                            data = android.net.Uri.fromParts("package", context.packageName, null)
+                                        }
                                         try {
-                                            val width = mediaController?.videoSize?.width ?: 0
-                                            val height = mediaController?.videoSize?.height ?: 0
-                                            val params = PipHelper.buildPipParams(context, mediaController, width, height)
-                                            val activity = context.findActivity()
-                                            if (activity != null) {
-                                                val entered = activity.enterPictureInPictureMode(params)
-                                                com.example.LogKeeper.log("PiP enter result: $entered", "PlayerScreen")
-                                                if (!entered) {
-                                                    com.example.LogKeeper.logError("PlayerScreen", "enterPictureInPictureMode returned false", null)
-                                                }
-                                            } else {
-                                                com.example.LogKeeper.logError("PlayerScreen", "Activity is null for PiP", null)
-                                            }
+                                            context.startActivity(intent)
                                         } catch (e: Exception) {
-                                            com.example.LogKeeper.logError("PlayerScreen", "Exception entering PiP", e)
+                                            com.example.LogKeeper.logError("PlayerScreen", "Could not open PiP settings", e)
                                         }
                                     } else {
-                                        com.example.LogKeeper.logError("PlayerScreen", "PiP not supported on this SDK", null)
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                            try {
+                                                val width = mediaController?.videoSize?.width ?: 0
+                                                val height = mediaController?.videoSize?.height ?: 0
+                                                val params = PipHelper.buildPipParams(context, mediaController, width, height)
+                                                val activity = context.findActivity()
+                                                if (activity != null) {
+                                                    val entered = activity.enterPictureInPictureMode(params)
+                                                    com.example.LogKeeper.log("PiP enter result: $entered", "PlayerScreen")
+                                                    if (!entered) {
+                                                        com.example.LogKeeper.logError("PlayerScreen", "enterPictureInPictureMode returned false", null)
+                                                    }
+                                                } else {
+                                                    com.example.LogKeeper.logError("PlayerScreen", "Activity is null for PiP", null)
+                                                }
+                                            } catch (e: Exception) {
+                                                com.example.LogKeeper.logError("PlayerScreen", "Exception entering PiP", e)
+                                            }
+                                        } else {
+                                            com.example.LogKeeper.logError("PlayerScreen", "PiP not supported on this SDK", null)
+                                        }
                                     }
                                 }) {
                                     Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "PiP", tint = Color.White)
