@@ -125,7 +125,14 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
         }
         composable("playlists") {
             PlaylistsScreen(
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = { 
+                    val popped = navController.popBackStack()
+                    com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                    if (!popped) {
+                        com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                        (context as? android.app.Activity)?.finish()
+                    }
+                },
                 onNavigateToPlaylistDetail = { id ->
                     navController.navigate("playlist/$id")
                 }
@@ -138,7 +145,14 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
             val id = backStackEntry.arguments?.getInt("id") ?: 0
             PlaylistDetailScreen(
                 playlistId = id,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = { 
+                    val popped = navController.popBackStack()
+                    com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                    if (!popped) {
+                        com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                        (context as? android.app.Activity)?.finish()
+                    }
+                },
                 onNavigateToPlayer = { uri ->
                     val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("player/$encodedUri")
@@ -153,7 +167,10 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
             PlayerScreen(
                 uriString = uriString,
                 onNavigateBack = { 
-                    if (!navController.popBackStack()) {
+                    val popped = navController.popBackStack()
+                    com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                    if (!popped) {
+                        com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
                         (context as? android.app.Activity)?.finish()
                     }
                 },
@@ -178,7 +195,10 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
             com.example.ui.screens.PhotoEditorScreen(
                 uriString = decodedUri,
                 onNavigateBack = { 
-                    if (!navController.popBackStack()) {
+                    val popped = navController.popBackStack()
+                    com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                    if (!popped) {
+                        com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
                         (context as? android.app.Activity)?.finish()
                     }
                 }
@@ -195,7 +215,12 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
             com.example.ui.screens.AudioTrimmerScreen(
                 uriString = decodedUri,
                 onNavigateBack = { 
-                    navController.popBackStack()
+                    val popped = navController.popBackStack()
+                    com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                    if (!popped) {
+                        com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                        (context as? android.app.Activity)?.finish()
+                    }
                 }
             )
         }
@@ -210,7 +235,12 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
             com.example.ui.screens.VideoEditorScreen(
                 uriString = decodedUri,
                 onNavigateBack = { 
-                    navController.popBackStack()
+                    val popped = navController.popBackStack()
+                    com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                    if (!popped) {
+                        com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                        (context as? android.app.Activity)?.finish()
+                    }
                 }
             )
         }
