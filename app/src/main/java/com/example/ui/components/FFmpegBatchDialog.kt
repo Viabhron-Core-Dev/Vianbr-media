@@ -94,7 +94,12 @@ fun FFmpegBatchDialog(
                 val crf = (35 - (quality * 17)).toInt()
                 
                 val presetArg = if (fastExport) "ultrafast" else "medium"
-                val resArg = if (res == "Original" || format != "mp4") "" else "-s $res"
+                val resArg = if (res == "Original" || format != "mp4") "" else {
+                    val parts = res.split("x")
+                    val targetW = parts[0].toInt()
+                    val targetH = parts[1].toInt()
+                    "-vf \"scale=w=$targetW:h=$targetH:force_original_aspect_ratio=decrease,pad=$targetW:$targetH:(ow-iw)/2:(oh-ih)/2\""
+                }
                 
                 val cmd = when(format) {
                     "mp4" -> "-y -i %INPUT% $resArg -r $fps -vcodec libx264 -crf $crf -preset $presetArg %OUTPUT%"

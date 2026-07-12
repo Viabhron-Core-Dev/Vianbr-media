@@ -993,6 +993,13 @@ fun VideoEditorScreen(
                             filterList.add("drawtext=text='$safeText':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=h-th-50:fontfile=/system/fonts/Roboto-Regular.ttf")
                         }
                         
+                        if (res != "Original") {
+                            val parts = res.split("x")
+                            val targetW = parts[0].toInt()
+                            val targetH = parts[1].toInt()
+                            filterList.add("scale=w=$targetW:h=$targetH:force_original_aspect_ratio=decrease:flags=lanczos,pad=$targetW:$targetH:(ow-iw)/2:(oh-ih)/2")
+                        }
+                        
                         val videoFilterArgs = if (filterList.isNotEmpty()) {
                             "-vf \"${filterList.joinToString(",")}\""
                         } else {
@@ -1010,14 +1017,17 @@ fun VideoEditorScreen(
                         if (filterList.isNotEmpty()) {
                             gifFilters.addAll(filterList)
                         }
-                        gifFilters.add("fps=$fps,scale=-1:-1:flags=lanczos")
+                        if (res == "Original") {
+                            gifFilters.add("fps=$fps,scale=-2:480:flags=lanczos")
+                        } else {
+                            gifFilters.add("fps=$fps")
+                        }
                         val gifFilterArgs = "-vf \"${gifFilters.joinToString(",")}\""
 
                         val presetArg = if (fastExport) "ultrafast" else "medium"
-                        val resArg = if (res == "Original") "" else "-s $res"
 
                         val cmd = when (format) {
-                            "mp4" -> "-y $trimArgs -i %INPUT% $videoFilterArgs $audioFilterArgs $resArg -r $fps -vcodec libx264 -crf $crf -preset $presetArg %OUTPUT%"
+                            "mp4" -> "-y $trimArgs -i %INPUT% $videoFilterArgs $audioFilterArgs -r $fps -vcodec libx264 -crf $crf -preset $presetArg %OUTPUT%"
                             "mp3" -> "-y $trimArgs -i %INPUT% -vn $audioFilterArgs -acodec libmp3lame -q:a 2 %OUTPUT%"
                             "gif" -> "-y $trimArgs -i %INPUT% $gifFilterArgs -loop 0 %OUTPUT%"
                             else -> "-y -i %INPUT% %OUTPUT%"
