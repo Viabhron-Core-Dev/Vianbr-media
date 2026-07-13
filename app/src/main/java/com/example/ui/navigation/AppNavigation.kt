@@ -84,6 +84,16 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
         }
     }
     
+    androidx.compose.runtime.DisposableEffect(navController) {
+        val listener = androidx.navigation.NavController.OnDestinationChangedListener { _, destination, _ ->
+            com.example.LogKeeper.log("Navigated to: ${destination.route}", "Navigation")
+        }
+        navController.addOnDestinationChangedListener(listener)
+        onDispose {
+            navController.removeOnDestinationChangedListener(listener)
+        }
+    }
+
     NavHost(navController = navController, startDestination = startDest) {
         composable("welcome") {
             WelcomeScreen(
