@@ -174,14 +174,20 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
             arguments = listOf(navArgument("uri") { type = NavType.StringType })
         ) { backStackEntry ->
             val uriString = backStackEntry.arguments?.getString("uri") ?: ""
+            var hasNavigatedBackOnce by remember(uriString) { mutableStateOf(false) }
             PlayerScreen(
                 uriString = uriString,
                 onNavigateBack = { 
-                    val popped = navController.popBackStack()
-                    com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
-                    if (!popped) {
-                        com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
-                        (context as? android.app.Activity)?.finish()
+                    if (!hasNavigatedBackOnce) {
+                        hasNavigatedBackOnce = true
+                        val popped = navController.popBackStack()
+                        com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                        if (!popped) {
+                            com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                            (context as? android.app.Activity)?.finish()
+                        }
+                    } else {
+                        com.example.LogKeeper.log("onNavigateBack called again for same session, ignoring", "Navigation")
                     }
                 },
                 onNavigateToEdit = { editUri ->
