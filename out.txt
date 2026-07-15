@@ -1,0 +1,203 @@
+    var hoistedMainListener by remember { mutableStateOf<androidx.media3.common.Player.Listener?>(null) }
+
+    DisposableEffect(uriString) {
+        val settingsManager = com.example.data.SettingsManager.getInstance(context)
+        com.example.LogKeeper.log("Starting player for $decodedUri", "PlayerScreen")
+        
+        // Ensure player is initialized
+        com.example.service.PlayerManager.initialize(context, false)
+        mediaController = com.example.service.PlayerManager.exoPlayer
+        
+        // Start the service for MediaSession features
+        val intent = android.content.Intent(context, com.example.service.PlaybackService::class.java)
+        try {
+            context.startService(intent)
+        } catch(e: Exception) {}
+
+        val controller = mediaController ?: return@DisposableEffect onDispose {}
+        
+        val savedGain = settingsManager.boostGainMb
+        boostGainMb = savedGain
+        if (savedGain > 0) {
+            com.example.service.PlayerManager.applyAudioBoosterSettings(settingsManager.audioBoosterEnabled, savedGain)
+        }
+        controller.setPlaybackSpeed(playbackSpeed)
+        
+        val mainListener = object : androidx.media3.common.Player.Listener {
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                // Restore track selection
+                val audioTrackIdx = settingsManager.getTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_AUDIO)
+                val subtitleTrackIdx = settingsManager.getTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT)
+                
+                var builder = controller.trackSelectionParameters.buildUpon()
+                var changed = false
+                
+                if (audioTrackIdx != -1) {
+                    val audioGroups = tracks.groups.filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+                    var found = false
+                    var totalIdx = 0
+                    for (group in audioGroups) {
+                        for (i in 0 until group.length) {
+                            if (totalIdx == audioTrackIdx) {
+                                builder.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, i))
+                                changed = true
+                                found = true
+                                break
+                            }
+                            totalIdx++
+                        }
+                        if (found) break
+                    }
+                }
+                
+                if (subtitleTrackIdx != -1) {
+                    val subtitleGroups = tracks.groups.filter { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT }
+                    var found = false
+                    var totalIdx = 0
+                    for (group in subtitleGroups) {
+                        for (i in 0 until group.length) {
+                            if (totalIdx == subtitleTrackIdx) {
+                                builder.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                                builder.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, i))
+                                changed = true
+                                found = true
+                                break
+                            }
+                            totalIdx++
+                        }
+                        if (found) break
+                    }
+                }
+                
+                if (changed) {
+                    controller.trackSelectionParameters = builder.build()
+                }
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                    val currentMode = controller.repeatMode
+                    val hasNext = controller.hasNextMediaItem()
+                    if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF && !hasNext) {
+                        // Service will stop itself when STATE_ENDED
+                        onNavigateBack()
+                    }
+                }
+            }
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (reason == androidx.media3.common.Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+                    if (controller.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) {
+                        onNavigateBack()
+                    }
+                }
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                com.example.LogKeeper.logError("PlayerScreen", "ExoPlayer Error: ${error.message}", error)
+            }
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    context.findActivity()?.requestedOrientation = if (videoSize.width > videoSize.height) {
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    } else {
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                    }
+                }
+            }
+        }
+        hoistedMainListener = mainListener
+        controller.addListener(mainListener)
+        
+        val currentVideoSize = controller.videoSize
+        if (currentVideoSize.width > 0 && currentVideoSize.height > 0) {
+            context.findActivity()?.requestedOrientation = if (currentVideoSize.width > currentVideoSize.height) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            }
+        }
+        
+
+        
+        val pipListener = object : androidx.media3.common.Player.Listener {
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                PipHelper.updatePipParams(context, controller, videoSize.width, videoSize.height)
+            }
+            override fun onEvents(player: androidx.media3.common.Player, events: androidx.media3.common.Player.Events) {
+                if (events.contains(androidx.media3.common.Player.EVENT_IS_PLAYING_CHANGED) || events.contains(androidx.media3.common.Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+                    PipHelper.updatePipParams(context, player, player.videoSize.width, player.videoSize.height)
+                }
+            }
+        }
+        controller.addListener(pipListener)
+        PipHelper.updatePipParams(context, controller, controller.videoSize.width, controller.videoSize.height)
+        
+        val pipReceiver = PipActionReceiver(controller)
+        val filter = android.content.IntentFilter(PipActionReceiver.ACTION_PIP_CONTROL)
+        androidx.core.content.ContextCompat.registerReceiver(
+            context,
+            pipReceiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_EXPORTED
+        )
+
+        
+        onDispose {
+            controller.removeListener(mainListener)
+            controller.removeListener(pipListener)
+            try {
+                context.unregisterReceiver(pipReceiver)
+            } catch(e: Exception) {}
+        }
+    }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner, mediaController) {
+        val currentController = mediaController
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            com.example.LogKeeper.log("LifecycleEventObserver received: $event", "PlayerScreen")
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                currentController?.let { controller ->
+                    val currentPos = controller.currentPosition
+                    val dur = controller.duration
+                    com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPos, dur)
+                    
+                    val activity = context.findActivity()
+                    val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) activity?.isInPictureInPictureMode == true else false
+                    // We don't call stop() here anymore. The PlaybackService will handle
+                    // inactivity timeouts (5 mins) to release resources gracefully.
+                    if (!isPip && !backgroundPlayEnabledRef.value) {
+                        controller.pause()
+                    }
+                }
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                currentController?.let { controller ->
+                    // No need to prepare() explicitly since we are not stopping the player.
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                context.findActivity()?.setPictureInPictureParams(
+                    PictureInPictureParams.Builder()
+                        .setAutoEnterEnabled(false)
+                        .build()
+                )
+            }
+            currentController?.let { controller ->
+                hoistedMainListener?.let { controller.removeListener(it) }
+                val currentPos = controller.currentPosition
+                val dur = controller.duration
+                com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPos, dur)
+                if (!backgroundPlayEnabledRef.value) {
+                    controller.clearMediaItems()
+                    controller.stop()
+                }
+            }
+        }
+    }
+
+    var isInPipMode by remember { 
+        val activity = context.findActivity() as? androidx.activity.ComponentActivity

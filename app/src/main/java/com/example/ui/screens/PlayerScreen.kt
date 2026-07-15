@@ -430,6 +430,8 @@ fun PlayerScreen(
         }
     }
 
+    var hoistedMainListener by remember { mutableStateOf<androidx.media3.common.Player.Listener?>(null) }
+
     DisposableEffect(uriString) {
         val settingsManager = com.example.data.SettingsManager.getInstance(context)
         com.example.LogKeeper.log("Starting player for $decodedUri", "PlayerScreen")
@@ -533,6 +535,7 @@ fun PlayerScreen(
                 }
             }
         }
+        hoistedMainListener = mainListener
         controller.addListener(mainListener)
         
         val currentVideoSize = controller.videoSize
@@ -583,6 +586,7 @@ fun PlayerScreen(
     DisposableEffect(lifecycleOwner, mediaController) {
         val currentController = mediaController
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            com.example.LogKeeper.log("LifecycleEventObserver received: $event", "PlayerScreen")
             if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
                 currentController?.let { controller ->
                     val currentPos = controller.currentPosition
@@ -615,6 +619,7 @@ fun PlayerScreen(
                 )
             }
             currentController?.let { controller ->
+                hoistedMainListener?.let { controller.removeListener(it) }
                 val currentPos = controller.currentPosition
                 val dur = controller.duration
                 com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPos, dur)
