@@ -1,5 +1,7 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.example.ui.screens
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.widthIn
 
 import androidx.compose.foundation.layout.heightIn
@@ -152,24 +154,22 @@ fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
     return uri.lastPathSegment?.substringBeforeLast('.') ?: "Unknown"
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun MyModalBottomSheet(
+fun CompactPlayerDialog(
     onDismissRequest: () -> Unit,
-    sheetState: androidx.compose.material3.SheetState,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
-    androidx.compose.material3.ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        modifier = Modifier.widthIn(max = 400.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
-            horizontalAlignment = Alignment.CenterHorizontally
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest) {
+        androidx.compose.material3.Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+            color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+            modifier = Modifier.widthIn(max = 360.dp)
         ) {
             Column(
-                modifier = Modifier.widthIn(max = 400.dp).fillMaxWidth()
+                modifier = Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                    .padding(16.dp)
             ) {
                 content()
             }
@@ -1491,9 +1491,8 @@ fun PlayerScreen(
     }
 
     if (showAudioDialog) {
-        MyModalBottomSheet(
-            onDismissRequest = { showAudioDialog = false },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        CompactPlayerDialog(
+            onDismissRequest = { showAudioDialog = false }
         ) {
             Column(modifier = Modifier.padding(8.dp)) {
                     Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -1584,9 +1583,8 @@ fun PlayerScreen(
     }
 
     if (showSubtitleDialog) {
-        MyModalBottomSheet(
-            onDismissRequest = { showSubtitleDialog = false },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        CompactPlayerDialog(
+            onDismissRequest = { showSubtitleDialog = false }
         ) {
             var selectedTab by remember { mutableStateOf(0) }
             Column(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
@@ -1704,9 +1702,8 @@ fun PlayerScreen(
     }
 
     if (showSpeedDialog) {
-        MyModalBottomSheet(
-            onDismissRequest = { showSpeedDialog = false },
-            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        CompactPlayerDialog(
+            onDismissRequest = { showSpeedDialog = false }
         ) {
             Column(
                 modifier = Modifier.padding(8.dp),
