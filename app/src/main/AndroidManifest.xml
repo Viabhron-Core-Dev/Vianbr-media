@@ -40,8 +40,12 @@
             android:exported="true"
             android:label="Batch Compress"
             android:icon="@mipmap/ic_batch_launcher"
+            android:roundIcon="@mipmap/ic_batch_launcher_round"
             android:theme="@style/Theme.Transparent">
-            <intent-filter>
+            <intent-filter
+                android:label="Batch Compress"
+                android:icon="@mipmap/ic_batch_launcher"
+                android:roundIcon="@mipmap/ic_batch_launcher_round">
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
@@ -55,8 +59,12 @@
             android:targetActivity=".MainActivity"
             android:label="Play"
             android:icon="@mipmap/ic_play_launcher"
+            android:roundIcon="@mipmap/ic_play_launcher_round"
             android:exported="true">
-            <intent-filter>
+            <intent-filter
+                android:label="Play"
+                android:icon="@mipmap/ic_play_launcher"
+                android:roundIcon="@mipmap/ic_play_launcher_round">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -66,7 +74,10 @@
                 <data android:scheme="file" />
                 <data android:scheme="content" />
             </intent-filter>
-            <intent-filter>
+            <intent-filter
+                android:label="Play"
+                android:icon="@mipmap/ic_play_launcher"
+                android:roundIcon="@mipmap/ic_play_launcher_round">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
@@ -80,8 +91,12 @@
             android:targetActivity=".MainActivity"
             android:label="Edit"
             android:icon="@mipmap/ic_edit_launcher"
+            android:roundIcon="@mipmap/ic_edit_launcher_round"
             android:exported="true">
-            <intent-filter>
+            <intent-filter
+                android:label="Edit"
+                android:icon="@mipmap/ic_edit_launcher"
+                android:roundIcon="@mipmap/ic_edit_launcher_round">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -91,7 +106,10 @@
                 <data android:scheme="file" />
                 <data android:scheme="content" />
             </intent-filter>
-            <intent-filter>
+            <intent-filter
+                android:label="Edit"
+                android:icon="@mipmap/ic_edit_launcher"
+                android:roundIcon="@mipmap/ic_edit_launcher_round">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
