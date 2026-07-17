@@ -159,17 +159,20 @@ fun CompactPlayerDialog(
     onDismissRequest: () -> Unit,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         androidx.compose.material3.Surface(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
             color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
-            modifier = Modifier.widthIn(max = 360.dp)
+            modifier = Modifier.widthIn(max = 280.dp).padding(horizontal = 16.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = 400.dp)
                     .verticalScroll(androidx.compose.foundation.rememberScrollState())
-                    .padding(16.dp)
+                    .padding(12.dp)
             ) {
                 content()
             }
@@ -928,19 +931,14 @@ fun PlayerScreen(
                 var isCharging by remember { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
-                    val intentFilter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
                     val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
+                    val batteryManager = context.getSystemService(android.content.Context.BATTERY_SERVICE) as android.os.BatteryManager
                     while (true) {
                         timeStr = sdf.format(java.util.Date()).lowercase(java.util.Locale.US)
-                        val batteryStatus = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            context.registerReceiver(null, intentFilter)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            batteryPct = batteryManager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                            isCharging = batteryManager.isCharging
                         }
-                        val level = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: 100
-                        val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: 100
-                        val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                        
-                        isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-                        batteryPct = if (scale > 0) (level * 100) / scale else 100
                         delay(10000) // Update every 10 seconds
                     }
                 }
