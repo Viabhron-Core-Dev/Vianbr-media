@@ -188,6 +188,11 @@ fun PlayerScreen(
     var mediaController by remember { mutableStateOf(com.example.service.PlayerManager.exoPlayer) }
     var showPlayerSettingsDialog by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(false) }
+    var showDetailsDialog by remember { mutableStateOf(false) }
+    var detailsName by remember { mutableStateOf("Unknown") }
+    var detailsSize by remember { mutableStateOf("Unknown") }
+    var detailsDate by remember { mutableStateOf("Unknown") }
+    var detailsPath by remember { mutableStateOf("Unknown") }
     var isLocked by remember { mutableStateOf(false) }
     var resizeMode by remember { androidx.compose.runtime.mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
     var showBrightnessSlider by remember { mutableStateOf(false) }
@@ -927,7 +932,9 @@ fun PlayerScreen(
                     val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
                     while (true) {
                         timeStr = sdf.format(java.util.Date()).lowercase(java.util.Locale.US)
-                        val batteryStatus = context.registerReceiver(null, intentFilter)
+                        val batteryStatus = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            context.registerReceiver(null, intentFilter)
+                        }
                         val level = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: 100
                         val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: 100
                         val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
@@ -1028,12 +1035,7 @@ fun PlayerScreen(
                                 Icon(Icons.Filled.Subtitles, contentDescription = "Subtitles", tint = Color.White)
                             }
                             Box {
-                                var showDetailsDialog by remember { mutableStateOf(false) }
-                                
-                                var detailsName by remember { mutableStateOf("Unknown") }
-                                var detailsSize by remember { mutableStateOf("Unknown") }
-                                var detailsDate by remember { mutableStateOf("Unknown") }
-                                var detailsPath by remember { mutableStateOf("Unknown") }
+
                                 
                                 LaunchedEffect(decodedUri) {
                                     detailsName = decodedUri.lastPathSegment ?: "Unknown"
@@ -1115,32 +1117,7 @@ fun PlayerScreen(
                                     )
                                 }
                                 
-                                if (showDetailsDialog) {
-                                    val duration = mediaController?.duration ?: 0L
-                                    val durationStr = if (duration > 0) String.format(java.util.Locale.US, "%02d:%02d", java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(duration), java.util.concurrent.TimeUnit.MILLISECONDS.toSeconds(duration) % 60) else "Unknown"
-                                    
-                                    androidx.compose.material3.AlertDialog(
-                                        onDismissRequest = { showDetailsDialog = false },
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        title = { Text("Properties", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
-                                        text = { 
-                                            Column {
-                                                Text("Name: $detailsName", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text("Size: $detailsSize", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text("Duration: $durationStr", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text("Date Added: $detailsDate", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                Spacer(modifier = Modifier.height(8.dp))
-                                                Text("Path: $detailsPath", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                                            }
-                                        },
-                                        confirmButton = {
-                                            androidx.compose.material3.TextButton(onClick = { showDetailsDialog = false }) { Text("OK", color = Color(0xFF2196F3)) }
-                                        }
-                                    )
-                                }
+                                
                             }
                         }
                         
@@ -1490,13 +1467,40 @@ fun PlayerScreen(
         }
     }
 
+    if (showDetailsDialog) {
+        val duration = mediaController?.duration ?: 0L
+        val durationStr = if (duration > 0) String.format(java.util.Locale.US, "%02d:%02d", java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(duration), java.util.concurrent.TimeUnit.MILLISECONDS.toSeconds(duration) % 60) else "Unknown"
+        
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDetailsDialog = false },
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            title = { Text("Properties", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+            text = {
+                Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                    Text("Name: $detailsName", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Size: $detailsSize", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Duration: $durationStr", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Date Added: $detailsDate", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Path: $detailsPath", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showDetailsDialog = false }) { Text("OK", color = Color(0xFF2196F3)) }
+            }
+        )
+    }
+
     if (showAudioDialog) {
         CompactPlayerDialog(
             onDismissRequest = { showAudioDialog = false }
         ) {
-            Column(modifier = Modifier.padding(8.dp)) {
+            Column(modifier = Modifier.padding(4.dp)) {
                     Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     
                     val settings = remember { com.example.data.SettingsManager.getInstance(context) }
                     if (settings.audioBoosterEnabled) {
@@ -1516,14 +1520,14 @@ fun PlayerScreen(
                             valueRange = 0f..1500f,
                             steps = 14
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                     } else {
                         Text(
                             text = "Volume Booster is disabled in Player Settings.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                     }
                     
                     val currentTracks = mediaController?.currentTracks
@@ -1561,7 +1565,7 @@ fun PlayerScreen(
     }
                     }
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable {
                             audioPickerLauncher.launch("audio/*")
@@ -1573,7 +1577,7 @@ fun PlayerScreen(
                         Text("Add More...", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         androidx.compose.material3.TextButton(onClick = { showAudioDialog = false }) {
                             Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1712,7 +1716,7 @@ fun PlayerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                     Text("Select playback speed", style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1746,7 +1750,7 @@ fun PlayerScreen(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1770,7 +1774,7 @@ fun PlayerScreen(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1795,7 +1799,7 @@ fun PlayerScreen(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
