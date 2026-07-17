@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material.icons.filled.PictureInPictureAlt
@@ -853,15 +854,15 @@ fun PlayerScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .padding(start = 24.dp)
-                            .height(160.dp)
-                            .width(42.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(21.dp))
-                            .padding(vertical = 10.dp)
+                            .height(170.dp)
+                            .width(56.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
+                            .padding(vertical = 12.dp)
                     ) {
                         Text(
                             text = "${(gestureVolumeRatio * 200).roundToInt()}%",
                             color = Color.White,
-                            fontSize = 10.sp,
+                            fontSize = 16.sp,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -1388,7 +1389,10 @@ fun PlayerScreen(
                             }
                             
                             // Right alignment
-                            Row(modifier = Modifier.align(Alignment.CenterEnd)) {
+                            val isPortrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+                            var showToolsStack by remember { mutableStateOf(false) }
+
+                            val RightTools: @Composable () -> Unit = {
                                 IconButton(onClick = {
                                     val nextMode = when (repeatMode) {
                                         androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
@@ -1468,6 +1472,32 @@ fun PlayerScreen(
                                     }
                                 }) {
                                     Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "PiP", tint = Color.White)
+                                }
+                            }
+                            
+                            Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                                if (isPortrait) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        androidx.compose.animation.AnimatedVisibility(
+                                            visible = showToolsStack,
+                                            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(expandFrom = Alignment.Bottom),
+                                            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(shrinkTowards = Alignment.Bottom)
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.background(Color.Black.copy(alpha=0.6f), androidx.compose.foundation.shape.RoundedCornerShape(24.dp)),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                RightTools()
+                                            }
+                                        }
+                                        IconButton(onClick = { showToolsStack = !showToolsStack }) {
+                                            Icon(if (showToolsStack) Icons.Filled.ExpandMore else Icons.Filled.MoreVert, contentDescription = "More tools", tint = Color.White)
+                                        }
+                                    }
+                                } else {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        RightTools()
+                                    }
                                 }
                             }
                         }
