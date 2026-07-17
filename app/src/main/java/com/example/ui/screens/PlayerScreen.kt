@@ -166,11 +166,11 @@ fun CompactPlayerDialog(
         androidx.compose.material3.Surface(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
             color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
-            modifier = Modifier.widthIn(max = 280.dp).padding(horizontal = 16.dp)
+            modifier = Modifier.widthIn(min = 340.dp, max = 360.dp).padding(horizontal = 16.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .heightIn(max = 400.dp)
+                    .heightIn(max = 250.dp)
                     .verticalScroll(androidx.compose.foundation.rememberScrollState())
                     .padding(12.dp)
             ) {
@@ -307,7 +307,7 @@ fun PlayerScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
             val window = context.findActivity()?.window
             if (window != null) {
                 val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
@@ -932,14 +932,26 @@ fun PlayerScreen(
 
                 LaunchedEffect(Unit) {
                     val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
-                    val batteryManager = context.getSystemService(android.content.Context.BATTERY_SERVICE) as android.os.BatteryManager
                     while (true) {
                         timeStr = sdf.format(java.util.Date()).lowercase(java.util.Locale.US)
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            batteryPct = batteryManager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
-                            isCharging = batteryManager.isCharging
+                        kotlinx.coroutines.delay(1000)
+                    }
+                }
+                
+                DisposableEffect(Unit) {
+                    val receiver = object : android.content.BroadcastReceiver() {
+                        override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+                            val status = intent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
+                            val level = intent.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+                            val scale = intent.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
+                            isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+                            batteryPct = if (scale > 0) (level * 100) / scale else 100
                         }
-                        delay(10000) // Update every 10 seconds
+                    }
+                    val filter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+                    context.registerReceiver(receiver, filter)
+                    onDispose {
+                        context.unregisterReceiver(receiver)
                     }
                 }
                 

@@ -287,12 +287,12 @@ fun MainScreen(
                         Icon(Icons.Filled.Share, contentDescription = "Share")
                     }
                     Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = { showDeleteConfirmDialog = true }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = { showInfoDialog = true }) {
                         Icon(Icons.Filled.Info, contentDescription = "Info")
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = { showDeleteConfirmDialog = true }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
                     }
                     Spacer(modifier = Modifier.weight(1f))
                 }
