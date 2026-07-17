@@ -1532,7 +1532,9 @@ fun PlayerScreen(
                     if (audioGroups.isEmpty()) {
                         Text("No audio tracks available", style = MaterialTheme.typography.bodyLarge)
                     } else {
-                        androidx.compose.foundation.lazy.LazyColumn {
+                        androidx.compose.foundation.lazy.LazyColumn(
+                            modifier = Modifier.heightIn(max = 200.dp)
+                        ) {
                             items(audioGroups.size) { groupIndex ->
                                 val group = audioGroups[groupIndex]
                                 for (trackIndex in 0 until group.length) {
