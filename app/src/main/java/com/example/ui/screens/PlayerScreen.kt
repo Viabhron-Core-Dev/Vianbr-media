@@ -73,6 +73,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import kotlin.math.roundToInt
 import androidx.compose.material3.Icon
@@ -1480,27 +1481,29 @@ fun PlayerScreen(
                             Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                                 if (isPortrait) {
                                     Box(contentAlignment = Alignment.BottomCenter) {
-                                        IconButton(onClick = { showToolsStack = !showToolsStack }) {
-                                            Icon(if (showToolsStack) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess, contentDescription = "More tools", tint = Color.White)
-                                        }
                                         Box(
-                                            modifier = Modifier.align(Alignment.TopCenter).requiredSize(0.dp),
-                                            contentAlignment = Alignment.BottomCenter
-                                        ) {
-                                            Box(modifier = Modifier.offset(y = (-20).dp)) {
-                                                androidx.compose.animation.AnimatedVisibility(
-                                                    visible = showToolsStack,
-                                                    enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(expandFrom = Alignment.Bottom),
-                                                    exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(shrinkTowards = Alignment.Bottom)
-                                                ) {
-                                                    Column(
-                                                        modifier = Modifier.background(Color.Black.copy(alpha=0.6f), androidx.compose.foundation.shape.RoundedCornerShape(24.dp)),
-                                                        horizontalAlignment = Alignment.CenterHorizontally
-                                                    ) {
-                                                        RightTools()
-                                                    }
+                                            modifier = Modifier.align(Alignment.TopCenter).layout { measurable, constraints ->
+                                                val placeable = measurable.measure(constraints)
+                                                layout(0, 0) {
+                                                    placeable.place(-placeable.width / 2, -placeable.height - 8.dp.roundToPx())
                                                 }
                                             }
+                                        ) {
+                                            androidx.compose.animation.AnimatedVisibility(
+                                                visible = showToolsStack,
+                                                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(expandFrom = Alignment.Bottom),
+                                                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(shrinkTowards = Alignment.Bottom)
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.background(Color.Black.copy(alpha=0.6f), androidx.compose.foundation.shape.RoundedCornerShape(24.dp)),
+                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                                ) {
+                                                    RightTools()
+                                                }
+                                            }
+                                        }
+                                        IconButton(onClick = { showToolsStack = !showToolsStack }) {
+                                            Icon(if (showToolsStack) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess, contentDescription = "More tools", tint = Color.White)
                                         }
                                     }
                                 } else {
