@@ -267,6 +267,7 @@ fun MainScreen(
                             val intent = android.content.Intent(context, com.example.BatchActionActivity::class.java).apply {
                                 action = android.content.Intent.ACTION_SEND_MULTIPLE
                                 type = "*/*"
+                                putExtra("force_ffmpeg", true)
                                 putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(selectedMediaItems.map { it.uri }))
                             }
                             context.startActivity(intent)

@@ -87,7 +87,7 @@ class BatchActionActivity : ComponentActivity() {
                     isAnimatedImageState = isAnim
                 }
 
-                val isVideoOrAudio = mimeType.startsWith("video/") || mimeType.startsWith("audio/") || initialUris.any { 
+                val isVideoOrAudio = intent?.getBooleanExtra("force_ffmpeg", false) == true || mimeType.startsWith("video/") || mimeType.startsWith("audio/") || initialUris.any { 
                     it.lowercase().endsWith(".mp4") 
                 } || isAnimatedImageState == true
                 
