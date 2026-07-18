@@ -8,6 +8,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
@@ -86,7 +88,14 @@ fun MainScreen(
     var selectedFolderId by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedFolder = mediaFolders.find { it.id == selectedFolderId }
     val selectedMediaItems = remember { mutableStateListOf<MediaItem>() }
+    var lastSelectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     val isMultiSelectMode = selectedMediaItems.isNotEmpty()
+
+    LaunchedEffect(isMultiSelectMode) {
+        if (!isMultiSelectMode) {
+            lastSelectedIndex = null
+        }
+    }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -253,6 +262,19 @@ fun MainScreen(
             if (isMultiSelectMode) {
                 BottomAppBar {
                     Spacer(modifier = Modifier.weight(1f))
+                    if (selectedMediaItems.size > 1) {
+                        IconButton(onClick = {
+                            val intent = android.content.Intent(context, com.example.BatchActionActivity::class.java).apply {
+                                action = android.content.Intent.ACTION_SEND_MULTIPLE
+                                type = "*/*"
+                                putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(selectedMediaItems.map { it.uri }))
+                            }
+                            context.startActivity(intent)
+                        }) {
+                            Icon(Icons.Filled.Layers, contentDescription = "Batch Compress")
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                     if (selectedMediaItems.size == 1) {
                         IconButton(onClick = { 
                             renameValue = selectedMediaItems.first().name.substringBeforeLast(".")
@@ -405,7 +427,7 @@ fun MainScreen(
                                 SortOrder.NAME -> filteredMedia.sortedBy { it.name.lowercase() }
                                 SortOrder.DATE -> filteredMedia.sortedByDescending { it.dateAdded }
                             }
-                            items(sortedMediaItems) { media ->
+                            itemsIndexed(sortedMediaItems) { index, media ->
                                 val isSelected = selectedMediaItems.contains(media)
                                 Card(
                                     modifier = Modifier
@@ -415,6 +437,7 @@ fun MainScreen(
                                             onClick = {
                                                 if (isMultiSelectMode) {
                                                     if (isSelected) selectedMediaItems.remove(media) else selectedMediaItems.add(media)
+                                                    lastSelectedIndex = index
                                                 } else {
                                                     viewModel.markAsStarted(media.id)
                                                     if (media.mediaType == com.example.data.MediaType.IMAGE) {
@@ -427,6 +450,18 @@ fun MainScreen(
                                             onLongClick = {
                                                 if (!isMultiSelectMode) {
                                                     selectedMediaItems.add(media)
+                                                    lastSelectedIndex = index
+                                                } else {
+                                                    val start = lastSelectedIndex ?: index
+                                                    val end = index
+                                                    val range = if (start < end) start..end else end..start
+                                                    for (i in range) {
+                                                        val item = sortedMediaItems[i]
+                                                        if (!selectedMediaItems.contains(item)) {
+                                                            selectedMediaItems.add(item)
+                                                        }
+                                                    }
+                                                    lastSelectedIndex = index
                                                 }
                                             }
                                         ),
