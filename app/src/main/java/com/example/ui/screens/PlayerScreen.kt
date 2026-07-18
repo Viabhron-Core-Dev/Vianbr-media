@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -302,9 +303,9 @@ fun PlayerScreen(
             val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
             insetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             if (showControls) {
-                insetsController.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                insetsController.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
             } else {
-                insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
             }
         }
     }
@@ -663,6 +664,7 @@ fun PlayerScreen(
     Box(modifier = Modifier
         .fillMaxSize()
         .background(Color.Black)
+        .navigationBarsPadding()
         .pointerInput(mediaController, isLocked) {
             detectTapGestures(
                 onDoubleTap = {
@@ -773,7 +775,7 @@ fun PlayerScreen(
                                         com.example.service.PlayerManager.applyAudioBoosterSettings(settings.audioBoosterEnabled, newBoost)
                                     }
                                     gestureVolumeRatio = virtualNewVolume.toFloat() / virtualMaxVolume.toFloat()
-                                    gestureText = "Volume: ${(gestureVolumeRatio * 200).roundToInt()}%"
+                                    gestureText = "Volume: ${(gestureVolumeRatio * 200).roundToInt()}"
                                     change.consume()
                                 }
                                 else -> {}
@@ -863,7 +865,7 @@ fun PlayerScreen(
                             .padding(vertical = 12.dp)
                     ) {
                         Text(
-                            text = "${(gestureVolumeRatio * 200).roundToInt()}%",
+                            text = "${(gestureVolumeRatio * 200).roundToInt()}",
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
@@ -1018,7 +1020,7 @@ fun PlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .align(Alignment.TopCenter)
-                            .windowInsetsPadding(WindowInsets.systemBars)
+                            .statusBarsPadding()
                     ) {
                         val displayName = remember(decodedUriString) { getDisplayNameFromUri(context, Uri.parse(decodedUriString)) }
                         Row(
@@ -1300,7 +1302,6 @@ fun PlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .align(Alignment.BottomCenter)
-                            .windowInsetsPadding(WindowInsets.systemBars)
                             .padding(bottom = 4.dp)
                     ) {
                         com.example.ui.screens.PlaybackProgressRow(

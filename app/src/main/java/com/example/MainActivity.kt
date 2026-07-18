@@ -27,8 +27,31 @@ import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
 
+  override fun onDestroy() {
+      super.onDestroy()
+      try {
+          unregisterReceiver(pipReceiver)
+      } catch (e: Exception) {}
+  }
+
+  private val pipReceiver = object : android.content.BroadcastReceiver() {
+      override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+          if (intent?.action == "com.example.ACTION_ENTER_PIP") {
+              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                  enterPictureInPictureMode(com.example.ui.screens.PipHelper.buildPipParams(this@MainActivity, com.example.service.PlayerManager.exoPlayer))
+              }
+          }
+      }
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    val filter = android.content.IntentFilter("com.example.ACTION_ENTER_PIP")
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+        registerReceiver(pipReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+    } else {
+        registerReceiver(pipReceiver, filter)
+    }
     com.facebook.drawee.backends.pipeline.Fresco.initialize(this)
     
     coil.Coil.setImageLoader(

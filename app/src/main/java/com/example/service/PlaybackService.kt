@@ -121,6 +121,11 @@ class PlaybackService : MediaSessionService() {
                         .add(androidx.media3.session.SessionCommand("ADD_SUBTITLE", android.os.Bundle.EMPTY))
                         .add(androidx.media3.session.SessionCommand("SET_BOOST_GAIN", android.os.Bundle.EMPTY))
                         .add(androidx.media3.session.SessionCommand("ACTION_CLOSE", android.os.Bundle.EMPTY))
+                        .add(androidx.media3.session.SessionCommand("ACTION_MORE", android.os.Bundle.EMPTY))
+                        .add(androidx.media3.session.SessionCommand("ACTION_LESS", android.os.Bundle.EMPTY))
+                        .add(androidx.media3.session.SessionCommand("ACTION_LOOP", android.os.Bundle.EMPTY))
+                        .add(androidx.media3.session.SessionCommand("ACTION_OVERLAY", android.os.Bundle.EMPTY))
+                        .add(androidx.media3.session.SessionCommand("ACTION_PIP", android.os.Bundle.EMPTY))
                         .build()
                     return MediaSession.ConnectionResult.accept(customCommands, defaultResult.availablePlayerCommands)
                 }
@@ -142,6 +147,38 @@ class PlaybackService : MediaSessionService() {
                         player.stop()
                         player.clearMediaItems()
                         stopSelf()
+                        return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
+                    }
+
+                    if (customCommand.customAction == "ACTION_LOOP") {
+                        val player = session.player
+                        player.repeatMode = when (player.repeatMode) {
+                            androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
+                            androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+                            else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                        }
+                        updateCustomLayout()
+                        return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
+                    }
+                    if (customCommand.customAction == "ACTION_OVERLAY") {
+                        if (!android.provider.Settings.canDrawOverlays(this@PlaybackService)) {
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
+                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(intent)
+                        } else {
+                            val intent = android.content.Intent(this@PlaybackService, com.example.service.MiniPlayerOverlayService::class.java)
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                startForegroundService(intent)
+                            } else {
+                                startService(intent)
+                            }
+                        }
+                        return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
+                    }
+                    if (customCommand.customAction == "ACTION_PIP") {
+                        // Broadcast to MainActivity to enter PiP
+                        val intent = android.content.Intent("com.example.ACTION_ENTER_PIP")
+                        sendBroadcast(intent)
                         return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
                     }
 
@@ -201,15 +238,7 @@ class PlaybackService : MediaSessionService() {
                 }
             }).build()
             
-        mediaSession?.setCustomLayout(
-            com.google.common.collect.ImmutableList.of(
-                androidx.media3.session.CommandButton.Builder()
-                    .setDisplayName("Close")
-                    .setIconResId(android.R.drawable.ic_menu_close_clear_cancel)
-                    .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_CLOSE", android.os.Bundle.EMPTY))
-                    .build()
-            )
-        )
+        updateCustomLayout()
         
         addSession(mediaSession!!)
     }
@@ -226,6 +255,41 @@ class PlaybackService : MediaSessionService() {
             player.stop()
             stopSelf()
         }
+    }
+
+    private fun updateCustomLayout() {
+
+        val loopMode = PlayerManager.exoPlayer?.repeatMode ?: androidx.media3.common.Player.REPEAT_MODE_OFF
+        val loopIcon = when (loopMode) {
+            androidx.media3.common.Player.REPEAT_MODE_ONE -> com.example.R.drawable.ic_loop_one
+            androidx.media3.common.Player.REPEAT_MODE_ALL -> com.example.R.drawable.ic_loop_all
+            else -> com.example.R.drawable.ic_loop_none
+        }
+
+        val buttons = listOf(
+            androidx.media3.session.CommandButton.Builder()
+                .setDisplayName("Loop")
+                .setIconResId(loopIcon)
+                .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_LOOP", android.os.Bundle.EMPTY))
+                .build(),
+            androidx.media3.session.CommandButton.Builder()
+                .setDisplayName("Playlist")
+                .setIconResId(com.example.R.drawable.ic_playlist)
+                .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_OVERLAY", android.os.Bundle.EMPTY))
+                .build(),
+            androidx.media3.session.CommandButton.Builder()
+                .setDisplayName("PiP")
+                .setIconResId(com.example.R.drawable.ic_pip)
+                .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_PIP", android.os.Bundle.EMPTY))
+                .build(),
+            androidx.media3.session.CommandButton.Builder()
+                .setDisplayName("Close")
+                .setIconResId(android.R.drawable.ic_menu_close_clear_cancel)
+                .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_CLOSE", android.os.Bundle.EMPTY))
+                .build()
+        )
+
+        mediaSession?.setCustomLayout(buttons)
     }
 
     override fun onDestroy() {
