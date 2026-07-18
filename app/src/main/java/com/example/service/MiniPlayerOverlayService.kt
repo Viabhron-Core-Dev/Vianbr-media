@@ -112,9 +112,12 @@ class MiniPlayerOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner,
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
+        val metrics = resources.displayMetrics
+        val widthPx = (300 * metrics.density).toInt()
+        val heightPx = (200 * metrics.density).toInt()
         layoutParams = WindowManager.LayoutParams(
-            800, // Initial width
-            1200, // Initial height
+            widthPx,
+            heightPx,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT

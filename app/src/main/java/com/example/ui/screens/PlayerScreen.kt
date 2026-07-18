@@ -303,9 +303,9 @@ fun PlayerScreen(
             val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
             insetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             if (showControls) {
-                insetsController.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                insetsController.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             } else {
-                insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             }
         }
     }
@@ -664,7 +664,6 @@ fun PlayerScreen(
     Box(modifier = Modifier
         .fillMaxSize()
         .background(Color.Black)
-        .navigationBarsPadding()
         .pointerInput(mediaController, isLocked) {
             detectTapGestures(
                 onDoubleTap = {
@@ -1302,6 +1301,7 @@ fun PlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
                             .padding(bottom = 4.dp)
                     ) {
                         com.example.ui.screens.PlaybackProgressRow(

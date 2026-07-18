@@ -13,6 +13,11 @@
 - **Batch Processing**: Batch convert and compress media files.
 
 ## Ledger of Changes
+- Replaced PIP button with Close and Mini Player buttons in notification bar.
+- Reduced MiniPlayer overlay size to 300x200 dp to fit on screen.
+- Updated notification bar loop icon to show active (blue) state for "Loop All" and "Loop One".
+- Adjusted PlayerScreen padding so video draws behind the navigation bar without shrinking, while keeping controls padded.
+- Configured navigation bar to hide/show in sync with player controls.
 - Implemented video player gestures (volume, brightness, seek).
 - Updated launcher and app icons to use the NextPlayer-inspired "play" icon.
 - Grouped "Sort" and "Settings" actions into a 3-dots overflow menu in the MainScreen top app bar.
