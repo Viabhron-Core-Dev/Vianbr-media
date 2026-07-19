@@ -3,7 +3,6 @@ package com.example.ui.components
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.vector.ImageVector
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -41,12 +40,21 @@ fun MiniPlayerOverlay(
     var title by remember { mutableStateOf(player?.currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Media") }
     var playlist by remember { mutableStateOf(emptyList<MediaItem>()) }
     var currentIndex by remember { mutableIntStateOf(player?.currentMediaItemIndex ?: 0) }
+    var loopMode by remember { mutableIntStateOf(player?.repeatMode ?: Player.REPEAT_MODE_OFF) }
+    var shuffleMode by remember { mutableStateOf(player?.shuffleModeEnabled ?: false) }
 
     LaunchedEffect(player) {
         if (player == null) return@LaunchedEffect
+
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlayingChange: Boolean) {
                 isPlaying = isPlayingChange
+            }
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                loopMode = repeatMode
+            }
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                shuffleMode = shuffleModeEnabled
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 title = mediaItem?.mediaMetadata?.title?.toString() ?: "No Media"
@@ -66,6 +74,7 @@ fun MiniPlayerOverlay(
             }
         }
         player.addListener(listener)
+
         // Initial setup
         title = player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Media"
         val items = mutableListOf<MediaItem>()
@@ -77,6 +86,8 @@ fun MiniPlayerOverlay(
         playlist = items
         currentIndex = player.currentMediaItemIndex
         duration = player.duration.coerceAtLeast(1L)
+        loopMode = player.repeatMode
+        shuffleMode = player.shuffleModeEnabled
 
         while (true) {
             currentPosition = player.currentPosition.coerceAtLeast(0L)
@@ -95,30 +106,30 @@ fun MiniPlayerOverlay(
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                // Topbar (draggable)
-                val context = LocalContext.current
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .pointerInput(Unit) {
-                            detectDragGestures { change, dragAmount ->
-                                change.consume()
-                                onDrag(dragAmount.x, dragAmount.y)
+                    // Topbar (draggable)
+                    val context = LocalContext.current
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    onDrag(dragAmount.x, dragAmount.y)
+                                }
                             }
-                        }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
                         onClick = {
                             val intent = android.content.Intent("com.example.ACTION_ENTER_PIP")
                             intent.setPackage(context.packageName)
@@ -191,36 +202,36 @@ fun MiniPlayerOverlay(
                     modifier = Modifier.padding(horizontal = 16.dp).height(24.dp)
                 )
 
-                // Separator Bar: Loop, Shuffle
+                                // Separator Bar: Loop, Shuffle
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    var loopMode by remember { mutableIntStateOf(player?.repeatMode ?: Player.REPEAT_MODE_OFF) }
                     IconButton(onClick = { 
-                        loopMode = when (loopMode) {
+                        val nextMode = when (loopMode) {
                             Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
                             Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
                             else -> Player.REPEAT_MODE_OFF
                         }
-                        player?.repeatMode = loopMode
+                        player?.repeatMode = nextMode
                     }, modifier = Modifier.size(32.dp)) {
+                        val repeatIcon = when (loopMode) {
+                            Player.REPEAT_MODE_ONE -> painterResource(id = com.example.R.drawable.ic_loop_one_active)
+                            Player.REPEAT_MODE_ALL -> painterResource(id = com.example.R.drawable.ic_loop_all_active)
+                            else -> painterResource(id = com.example.R.drawable.ic_loop_all_inactive)
+                        }
                         Icon(
-                            if (loopMode == Player.REPEAT_MODE_ONE) ImageVector.vectorResource(id = com.example.R.drawable.ic_loop_one_active)
-                            else if (loopMode == Player.REPEAT_MODE_ALL) ImageVector.vectorResource(id = com.example.R.drawable.ic_loop_all_active)
-                            else ImageVector.vectorResource(id = com.example.R.drawable.ic_loop_all_inactive),
-                            "Loop",
+                            repeatIcon,
+                            contentDescription = "Loop",
                             tint = Color.Unspecified,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    var shuffleMode by remember { mutableStateOf(player?.shuffleModeEnabled ?: false) }
                     IconButton(onClick = { 
-                        shuffleMode = !shuffleMode
-                        player?.shuffleModeEnabled = shuffleMode
+                        player?.shuffleModeEnabled = !shuffleMode
                     }, modifier = Modifier.size(32.dp)) {
                         Icon(
                             Icons.Filled.Shuffle, 

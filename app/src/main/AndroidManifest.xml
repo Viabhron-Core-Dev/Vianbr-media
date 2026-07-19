@@ -137,7 +137,6 @@
             android:name=".service.FFmpegService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
-        <service android:name=".service.MiniPlayerOverlayService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         
         <receiver android:name=".widget.MediaWidgetProvider" android:exported="true">
             <intent-filter>

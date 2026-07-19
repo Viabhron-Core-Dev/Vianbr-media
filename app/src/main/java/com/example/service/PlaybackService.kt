@@ -19,7 +19,35 @@ import coil.request.ImageRequest
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.BitmapDrawable
 
-class PlaybackService : MediaSessionService() {
+import android.annotation.SuppressLint
+import android.graphics.PixelFormat
+import android.view.Gravity
+import android.view.WindowManager
+import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+
+class PlaybackService : MediaSessionService(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
+
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    private val store = ViewModelStore()
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+    private lateinit var windowManager: WindowManager
+    private var composeView: ComposeView? = null
+    private var layoutParams: WindowManager.LayoutParams? = null
+
+    override val lifecycle: Lifecycle get() = lifecycleRegistry
+    override val viewModelStore: ViewModelStore get() = store
+    override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
 
     private var mediaSession: MediaSession? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -28,6 +56,9 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        windowManager = getSystemService(android.content.Context.WINDOW_SERVICE) as WindowManager
         
         try {
             val defaultProvider = androidx.media3.session.DefaultMediaNotificationProvider(this).apply {
@@ -158,11 +189,10 @@ class PlaybackService : MediaSessionService() {
                             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                             startActivity(intent)
                         } else {
-                            val intent = android.content.Intent(this@PlaybackService, com.example.service.MiniPlayerOverlayService::class.java)
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                startForegroundService(intent)
+                            if (composeView == null) {
+                                showOverlay()
                             } else {
-                                startService(intent)
+                                hideOverlay()
                             }
                         }
                         return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
@@ -249,6 +279,77 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun showOverlay() {
+        if (composeView != null) return
+        val cv = ComposeView(this)
+        composeView = cv
+        cv.setViewTreeLifecycleOwner(this@PlaybackService)
+        cv.setViewTreeViewModelStoreOwner(this@PlaybackService)
+        cv.setViewTreeSavedStateRegistryOwner(this@PlaybackService)
+        cv.setContent {
+            com.example.ui.components.MiniPlayerOverlay(
+                player = com.example.service.PlayerManager.exoPlayer,
+                onClose = {
+                    hideOverlay()
+                    val player = com.example.service.PlayerManager.exoPlayer
+                    if (player?.isPlaying == true) {
+                        player.pause()
+                    }
+                },
+                onDrag = { dx, dy ->
+                    val lp = layoutParams
+                    if (lp != null) {
+                        lp.x += dx.toInt()
+                        lp.y += dy.toInt()
+                        windowManager.updateViewLayout(cv, lp)
+                    }
+                },
+                onResize = { dw, dh ->
+                    val lp = layoutParams
+                    if (lp != null) {
+                        lp.width = (lp.width + dw.toInt()).coerceAtLeast(400)
+                        lp.height = (lp.height + dh.toInt()).coerceAtLeast(400)
+                        windowManager.updateViewLayout(cv, lp)
+                    }
+                }
+            )
+        }
+        val type = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val metrics = resources.displayMetrics
+        val widthPx = (300 * metrics.density).toInt()
+        val heightPx = (200 * metrics.density).toInt()
+        layoutParams = WindowManager.LayoutParams(
+            widthPx,
+            heightPx,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 100
+            y = 100
+        }
+        windowManager.addView(composeView, layoutParams)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    }
+
+    private fun hideOverlay() {
+        composeView?.let {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+            windowManager.removeView(it)
+        }
+        composeView = null
+    }
+
     private fun updateCustomLayout() {
 
         val loopMode = PlayerManager.exoPlayer?.repeatMode ?: androidx.media3.common.Player.REPEAT_MODE_OFF
@@ -302,6 +403,8 @@ class PlaybackService : MediaSessionService() {
             release()
         }
         mediaSession = null
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        hideOverlay()
         super.onDestroy()
     }
 
