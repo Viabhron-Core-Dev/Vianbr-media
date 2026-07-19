@@ -93,7 +93,8 @@ fun MiniPlayerOverlay(
             shape = RoundedCornerShape(16.dp),
             shadowElevation = 8.dp
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(modifier = Modifier.fillMaxSize()) {
                 // Topbar (draggable)
                 val context = LocalContext.current
                 Row(
@@ -140,6 +141,7 @@ fun MiniPlayerOverlay(
                     ) {
                         Icon(Icons.Filled.OpenInNew, "Main Player", modifier = Modifier.size(20.dp))
                     }
+
                 }
 
                 // Playback Buttons
@@ -228,7 +230,7 @@ fun MiniPlayerOverlay(
                         )
                     }
                 }
-                Divider()
+                androidx.compose.material3.HorizontalDivider()
 
                 // Playlist
                 LazyColumn(
@@ -256,33 +258,37 @@ fun MiniPlayerOverlay(
                         }
                     }
                 }
-
-                // Bottom row with Resize and Close
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Filled.Close, "Close", modifier = Modifier.size(20.dp))
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .pointerInput(Unit) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    onResize(dragAmount.x, dragAmount.y)
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Filled.ZoomOutMap, "Resize", modifier = Modifier.size(20.dp))
-                    }
+            }
+                
+            // Floating Close and Resize buttons at bottom right
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), RoundedCornerShape(16.dp)),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Close, "Close", modifier = Modifier.size(20.dp))
                 }
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                onResize(dragAmount.x, dragAmount.y)
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.ZoomOutMap, "Resize", modifier = Modifier.size(20.dp))
+                }
+            }
+            
             }
         }
     }
 }
+

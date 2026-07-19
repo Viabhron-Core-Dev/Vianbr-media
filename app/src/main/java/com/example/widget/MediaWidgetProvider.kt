@@ -11,8 +11,13 @@ import com.example.R
 
 class MediaWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
+        try {
+            for (appWidgetId in appWidgetIds) {
+                updateAppWidget(context, appWidgetManager, appWidgetId)
+            }
+            com.example.LogKeeper.log("Widget updated successfully for ${appWidgetIds.size} widgets", "MediaWidgetProvider")
+        } catch (e: Exception) {
+            com.example.LogKeeper.logError("MediaWidgetProvider", "Error in onUpdate", e)
         }
     }
 
@@ -72,9 +77,10 @@ class MediaWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        // Delegate media commands to a service or receiver that controls Media3
-        val action = intent.action
+        try {
+            super.onReceive(context, intent)
+            val action = intent.action
+            com.example.LogKeeper.log("onReceive action: $action", "MediaWidgetProvider")
         if (action == "ACTION_TOGGLE_MODE") {
             val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
             val currentMode = prefs.getString("mode", "PLAYLIST")
@@ -125,6 +131,9 @@ class MediaWidgetProvider : AppWidgetProvider() {
                 serviceIntent.putExtra("index", index)
                 context.sendBroadcast(serviceIntent)
             }
+        }
+        } catch (e: Exception) {
+            com.example.LogKeeper.logError("MediaWidgetProvider", "Error in onReceive", e)
         }
     }
 }
