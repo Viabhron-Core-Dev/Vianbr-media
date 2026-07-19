@@ -13,6 +13,10 @@
 - **Batch Processing**: Batch convert and compress media files.
 
 ## Ledger of Changes
+- Updated Mini Player UI: Added title bar for moving, PIP and Main Player buttons. Redesigned buttons and seek bar, added playlist, Loop and Shuffle buttons, and moved Resize/Close to bottom right. Forced blue standard surface theme to replace dynamic pink.
+- Updated notification bar player action priority to place Close first (left/right depending on locale), then Playlist, then standard buttons.
+- Created Homescreen Widget (4x4) with Media Controls and ListView playlist using RemoteViews to mimic the Mini Player's playlist capability, including search button placeholder.
+- Updated loop toggle in PlayerScreen and MiniPlayer to use the active colored (blue) icons.
 - Replaced PIP button with Close and Mini Player buttons in notification bar.
 - Reduced MiniPlayer overlay size to 300x200 dp to fit on screen.
 - Updated notification bar loop icon to show active (blue) state for "Loop All" and "Loop One".

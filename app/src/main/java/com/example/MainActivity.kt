@@ -125,7 +125,7 @@ class MainActivity : ComponentActivity() {
                   if (className.contains("PlayMediaActivity")) "play"
                   else if (className.contains("EditMediaActivity")) "edit"
                   else null
-              }
+              } ?: intent?.action
               
               AppNavigation(initialUris = initialUris, forceAction = forceAction)
               

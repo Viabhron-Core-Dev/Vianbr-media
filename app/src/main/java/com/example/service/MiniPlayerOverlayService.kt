@@ -83,7 +83,8 @@ class MiniPlayerOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner,
         cv.setViewTreeViewModelStoreOwner(this@MiniPlayerOverlayService)
         cv.setViewTreeSavedStateRegistryOwner(this@MiniPlayerOverlayService)
         cv.setContent {
-            MiniPlayerOverlay(
+            com.example.ui.components.MiniPlayerOverlay(
+                player = com.example.service.PlayerManager.exoPlayer,
                 onClose = {
                     stopSelf()
                 },

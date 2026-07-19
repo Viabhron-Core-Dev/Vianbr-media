@@ -77,7 +77,8 @@ fun MainScreen(
     onNavigateToPhotoEditor: (String) -> Unit = {},
     onNavigateToPlaylists: () -> Unit = {},
     onNavigateToAudioTrimmer: (String) -> Unit = {},
-    onNavigateToVideoEditor: (String) -> Unit = {}
+    onNavigateToVideoEditor: (String) -> Unit = {},
+    initialSearchActive: Boolean = false
 ) {
     val viewModel: MediaViewModel = viewModel()
     val mediaFolders by viewModel.mediaFolders.collectAsState()
@@ -113,7 +114,7 @@ fun MainScreen(
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var renameValue by rememberSaveable { mutableStateOf("") }
     
-    var isSearchActive by rememberSaveable { mutableStateOf(false) }
+    var isSearchActive by rememberSaveable { mutableStateOf(initialSearchActive) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
 
     val deleteLauncher = androidx.activity.compose.rememberLauncherForActivityResult(

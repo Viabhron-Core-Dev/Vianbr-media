@@ -142,6 +142,16 @@ class SettingsManager private constructor(context: Context) {
         get() = prefs.getInt("decoder_priority", 1) // 0: Device Only, 1: Prefer Device, 2: Prefer App
         set(value) = prefs.edit().putInt("decoder_priority", value).apply()
 
+    fun getNotificationPriority(): List<String> {
+        val defaultPriority = "Loop,Playlist,PiP,Close"
+        val saved = prefs.getString("notification_priority", defaultPriority) ?: defaultPriority
+        return saved.split(",")
+    }
+    
+    fun setNotificationPriority(priority: List<String>) {
+        prefs.edit().putString("notification_priority", priority.joinToString(",")).apply()
+    }
+
     companion object {
         @Volatile
         private var instance: SettingsManager? = null

@@ -10,3 +10,6 @@ val LightBlueOnPrimary = Color.White
 val LightBlueOnBackground = Color(0xFF19202D) // Dark blue-grey for text
 val LightBlueOnSurface = Color(0xFF19202D)
 val LightBlueOnSurfaceVariant = Color(0xFF4A5568)
+
+val LightBluePrimaryContainer = Color(0xFFE3F2FD)
+val LightBlueOnPrimaryContainer = Color(0xFF001E36)

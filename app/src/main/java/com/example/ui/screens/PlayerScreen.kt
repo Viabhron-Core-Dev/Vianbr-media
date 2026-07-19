@@ -1407,11 +1407,11 @@ fun PlayerScreen(
                                     mediaController?.repeatMode = nextMode
                                 }) {
                                     val repeatIcon = when (repeatMode) {
-                                        androidx.media3.common.Player.REPEAT_MODE_ONE -> Icons.Filled.RepeatOne
-                                        else -> Icons.Filled.Repeat
+                                        androidx.media3.common.Player.REPEAT_MODE_ONE -> androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_loop_one_active)
+                                        androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_loop_all_active)
+                                        else -> androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_loop_all_inactive)
                                     }
-                                    val repeatTint = if (repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White else Color(0xFF2196F3)
-                                    Icon(repeatIcon, contentDescription = "Repeat", tint = repeatTint)
+                                    Icon(repeatIcon, contentDescription = "Repeat", tint = Color.Unspecified)
                                 }
                                 IconButton(onClick = { 
                                     backgroundPlayEnabled = !backgroundPlayEnabled

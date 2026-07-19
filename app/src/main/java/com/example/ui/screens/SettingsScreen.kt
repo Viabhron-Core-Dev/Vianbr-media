@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -242,6 +244,58 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             Spacer(modifier = Modifier.height(8.dp))
             Button(onClick = { showPlayerSettingsDialog = true }) {
                 Text("Open Player Settings")
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            var showPriorityDialog by remember { mutableStateOf(false) }
+            Button(onClick = { showPriorityDialog = true }) {
+                Text("Notification Priority")
+            }
+            
+            if (showPriorityDialog) {
+                var currentPriority by remember { mutableStateOf(settingsManager.getNotificationPriority()) }
+                AlertDialog(
+                    onDismissRequest = { showPriorityDialog = false },
+                    title = { Text("Notification Button Priority") },
+                    text = {
+                        Column {
+                            Text("Reorder buttons (top has higher priority in compact view):", style = MaterialTheme.typography.bodySmall)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LazyColumn {
+                                items(count = currentPriority.size) { index ->
+                                    val item = currentPriority[index]
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                    ) {
+                                        Text(item, modifier = Modifier.weight(1f))
+                                        if (index > 0) {
+                                            IconButton(onClick = {
+                                                val newList = currentPriority.toMutableList()
+                                                newList.removeAt(index)
+                                                newList.add(index - 1, item)
+                                                currentPriority = newList
+                                                settingsManager.setNotificationPriority(newList)
+                                            }) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Up") }
+                                        }
+                                        if (index < currentPriority.size - 1) {
+                                            IconButton(onClick = {
+                                                val newList = currentPriority.toMutableList()
+                                                newList.removeAt(index)
+                                                newList.add(index + 1, item)
+                                                currentPriority = newList
+                                                settingsManager.setNotificationPriority(newList)
+                                            }) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Down") }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showPriorityDialog = false }) { Text("Close") }
+                    }
+                )
             }
             
             if (showPlayerSettingsDialog) {

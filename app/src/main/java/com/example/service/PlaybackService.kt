@@ -30,31 +30,10 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
         
         try {
-            val defaultProvider = androidx.media3.session.DefaultMediaNotificationProvider(this)
-            setMediaNotificationProvider(object : androidx.media3.session.MediaNotification.Provider {
-                override fun createNotification(
-                    session: MediaSession,
-                    customLayout: com.google.common.collect.ImmutableList<androidx.media3.session.CommandButton>,
-                    actionFactory: androidx.media3.session.MediaNotification.ActionFactory,
-                    onNotificationChangedCallback: androidx.media3.session.MediaNotification.Provider.Callback
-                ): androidx.media3.session.MediaNotification {
-                    try {
-                        val notification = defaultProvider.createNotification(session, customLayout, actionFactory, onNotificationChangedCallback)
-                        com.example.LogKeeper.log("Created MediaNotification successfully.", "PlaybackService")
-                        return notification
-                    } catch(e: Exception) {
-                        com.example.LogKeeper.logError("PlaybackService", "Failed to create MediaNotification", e)
-                        throw e
-                    }
-                }
-                override fun handleCustomCommand(
-                    session: MediaSession,
-                    action: String,
-                    extras: android.os.Bundle
-                ): Boolean {
-                    return defaultProvider.handleCustomCommand(session, action, extras)
-                }
-            })
+            val defaultProvider = androidx.media3.session.DefaultMediaNotificationProvider(this).apply {
+                // Media3 DefaultMediaNotificationProvider automatically adds custom layout commands
+            }
+            setMediaNotificationProvider(defaultProvider)
         } catch (e: Exception) {
             com.example.LogKeeper.logError("PlaybackService", "Failed to set up MediaNotificationProvider", e)
         }
@@ -62,7 +41,19 @@ class PlaybackService : MediaSessionService() {
         val settings = com.example.data.SettingsManager.getInstance(this)
         PlayerManager.initialize(this, false)
         
+        val filter = android.content.IntentFilter("com.example.ACTION_WIDGET_COMMAND")
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(widgetCommandReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(widgetCommandReceiver, filter)
+        }
+
         PlayerManager.exoPlayer?.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) { updateWidgetUI() }
+            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) { updateWidgetUI() }
+            override fun onRepeatModeChanged(repeatMode: Int) { updateWidgetUI() }
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) { updateWidgetUI() }
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) { updateWidgetUI() }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 val cause = error.cause?.message ?: "Unknown"
                 com.example.LogKeeper.logError("PlaybackService", "Error: ${error.errorCodeName} - ${error.message} - Cause: $cause", error)
@@ -293,6 +284,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        try { unregisterReceiver(widgetCommandReceiver) } catch (e: Exception) {}
         com.example.LogKeeper.log("onDestroy called.", "PlaybackService")
         serviceScope.cancel()
         mediaSession?.run {
@@ -302,5 +294,63 @@ class PlaybackService : MediaSessionService() {
         }
         mediaSession = null
         super.onDestroy()
+    }
+
+    private fun updateWidgetUI() {
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(this)
+        val componentName = android.content.ComponentName(this, com.example.widget.MediaWidgetProvider::class.java)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        if (appWidgetIds.isNotEmpty()) {
+            val player = PlayerManager.exoPlayer ?: return
+            for (appWidgetId in appWidgetIds) {
+                val views = android.widget.RemoteViews(packageName, com.example.R.layout.widget_media)
+                views.setTextViewText(com.example.R.id.widget_title, player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Media")
+                views.setImageViewResource(com.example.R.id.widget_btn_play, if (player.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
+                val loopIcon = when (player.repeatMode) {
+                    androidx.media3.common.Player.REPEAT_MODE_ONE -> com.example.R.drawable.ic_loop_one_active
+                    androidx.media3.common.Player.REPEAT_MODE_ALL -> com.example.R.drawable.ic_loop_all_active
+                    else -> com.example.R.drawable.ic_loop_all_inactive
+                }
+                views.setImageViewResource(com.example.R.id.widget_btn_loop, loopIcon)
+                appWidgetManager.updateAppWidget(appWidgetId, views)
+                appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, com.example.R.id.widget_list)
+            }
+        }
+    }
+
+    private val widgetCommandReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+            val player = PlayerManager.exoPlayer ?: return
+            when (intent.getStringExtra("command")) {
+                "ACTION_PLAY_PAUSE" -> if (player.isPlaying) player.pause() else player.play()
+                "ACTION_PREV" -> player.seekToPreviousMediaItem()
+                "ACTION_NEXT" -> player.seekToNextMediaItem()
+                "ACTION_LOOP" -> {
+                    val nextMode = when (player.repeatMode) {
+                        androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
+                        androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+                        else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                    }
+                    player.repeatMode = nextMode
+                }
+                "ACTION_SHUFFLE" -> player.shuffleModeEnabled = !player.shuffleModeEnabled
+                "ACTION_PLAY_ITEM" -> {
+                    val index = intent.getIntExtra("index", -1)
+                    if (index >= 0) player.seekToDefaultPosition(index)
+                }
+                "ACTION_PLAY_FILE" -> {
+                    val uriStr = intent.getStringExtra("uri")
+                    if (uriStr != null) {
+                        val playIntent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
+                            action = android.content.Intent.ACTION_VIEW
+                            data = android.net.Uri.parse(uriStr)
+                            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        }
+                        context.startActivity(playIntent)
+                    }
+                }
+            }
+            updateWidgetUI()
+        }
     }
 }

@@ -1,5 +1,9 @@
 package com.example.ui.components
 
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -16,98 +20,82 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import com.example.service.PlayerManager
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MiniPlayerOverlay(
+    player: Player?,
     onClose: () -> Unit,
     onDrag: (Float, Float) -> Unit,
     onResize: (Float, Float) -> Unit
 ) {
-    var title by remember { mutableStateOf("No Media") }
-    var isPlaying by remember { mutableStateOf(false) }
-    var currentPosition by remember { mutableLongStateOf(0L) }
-    var duration by remember { mutableLongStateOf(100L) }
-    var playlist by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-    var currentIndex by remember { mutableIntStateOf(-1) }
-    
-    val player = PlayerManager.exoPlayer
+    var isPlaying by remember { mutableStateOf(player?.isPlaying == true) }
+    var currentPosition by remember { mutableLongStateOf(player?.currentPosition ?: 0L) }
+    var duration by remember { mutableLongStateOf(player?.duration?.coerceAtLeast(1L) ?: 1L) }
+    var title by remember { mutableStateOf(player?.currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Media") }
+    var playlist by remember { mutableStateOf(emptyList<MediaItem>()) }
+    var currentIndex by remember { mutableIntStateOf(player?.currentMediaItemIndex ?: 0) }
 
     LaunchedEffect(player) {
         if (player == null) return@LaunchedEffect
-        
         val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlayingChange: Boolean) {
+                isPlaying = isPlayingChange
+            }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                title = mediaItem?.mediaMetadata?.title?.toString() 
-                    ?: mediaItem?.mediaId 
-                    ?: "Unknown"
+                title = mediaItem?.mediaMetadata?.title?.toString() ?: "No Media"
                 currentIndex = player.currentMediaItemIndex
-                val items = mutableListOf<MediaItem>()
-                for (i in 0 until player.mediaItemCount) {
-                    items.add(player.getMediaItemAt(i))
-                }
-                playlist = items
+                duration = player.duration.coerceAtLeast(1L)
             }
-
-            override fun onIsPlayingChanged(isPlayingState: Boolean) {
-                isPlaying = isPlayingState
-            }
-
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                duration = player.duration.coerceAtLeast(100L)
-            }
-            
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 val items = mutableListOf<MediaItem>()
-                for (i in 0 until player.mediaItemCount) {
-                    items.add(player.getMediaItemAt(i))
+                for (i in 0 until timeline.windowCount) {
+                    val window = androidx.media3.common.Timeline.Window()
+                    timeline.getWindow(i, window)
+                    items.add(window.mediaItem)
                 }
                 playlist = items
                 currentIndex = player.currentMediaItemIndex
+                duration = player.duration.coerceAtLeast(1L)
             }
         }
         player.addListener(listener)
-        
-        // Initial state
-        title = player.currentMediaItem?.mediaMetadata?.title?.toString() 
-            ?: player.currentMediaItem?.mediaId 
-            ?: "No Media"
-        isPlaying = player.isPlaying
-        duration = player.duration.coerceAtLeast(100L)
-        currentIndex = player.currentMediaItemIndex
+        // Initial setup
+        title = player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Media"
         val items = mutableListOf<MediaItem>()
-        for (i in 0 until player.mediaItemCount) {
-            items.add(player.getMediaItemAt(i))
+        for (i in 0 until player.currentTimeline.windowCount) {
+            val window = androidx.media3.common.Timeline.Window()
+            player.currentTimeline.getWindow(i, window)
+            items.add(window.mediaItem)
         }
         playlist = items
+        currentIndex = player.currentMediaItemIndex
+        duration = player.duration.coerceAtLeast(1L)
 
-        while (isActive) {
-            currentPosition = player.currentPosition
-            duration = player.duration.coerceAtLeast(100L)
+        while (true) {
+            currentPosition = player.currentPosition.coerceAtLeast(0L)
             delay(1000)
         }
     }
 
-    // MaterialTheme isn't strictly available in a standalone compose view unless we wrap it.
-    // Let's use a basic MaterialTheme block.
     com.example.ui.theme.MyApplicationTheme {
         Surface(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(16.dp)),
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            color = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(16.dp),
-            tonalElevation = 8.dp,
             shadowElevation = 8.dp
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Topbar
+                // Topbar (draggable)
+                val context = LocalContext.current
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -118,24 +106,46 @@ fun MiniPlayerOverlay(
                                 onDrag(dragAmount.x, dragAmount.y)
                             }
                         }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
+                    IconButton(
+                        onClick = {
+                            val intent = android.content.Intent("com.example.ACTION_ENTER_PIP")
+                            intent.setPackage(context.packageName)
+                            context.sendBroadcast(intent)
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Filled.PictureInPicture, "PiP", modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(
+                        onClick = {
+                            val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
+                                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            }
+                            context.startActivity(intent)
+                            onClose()
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Filled.OpenInNew, "Main Player", modifier = Modifier.size(20.dp))
+                    }
                 }
 
-                // Controls
+                // Playback Buttons
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(8.dp),
+                        .padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -143,25 +153,27 @@ fun MiniPlayerOverlay(
                         Icon(Icons.Filled.SkipPrevious, "Previous")
                     }
                     IconButton(onClick = { player?.seekBack() }) {
-                        Icon(Icons.Filled.FastRewind, "Rewind 5s")
+                        Icon(Icons.Filled.FastRewind, "Rewind")
                     }
                     IconButton(onClick = {
                         if (isPlaying) player?.pause() else player?.play()
                     }) {
                         Icon(if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Play/Pause")
                     }
+                    IconButton(onClick = { player?.stop() }) {
+                        Icon(Icons.Filled.Stop, "Stop")
+                    }
                     IconButton(onClick = { player?.seekForward() }) {
-                        Icon(Icons.Filled.FastForward, "Forward 5s")
+                        Icon(Icons.Filled.FastForward, "Forward")
                     }
                     IconButton(onClick = { player?.seekToNextMediaItem() }) {
                         Icon(Icons.Filled.SkipNext, "Next")
                     }
                 }
 
-                // Progress Bar
+                // Seek Line
                 var sliderPosition by remember(currentPosition) { mutableFloatStateOf(currentPosition.toFloat()) }
                 var isDragging by remember { mutableStateOf(false) }
-
                 Slider(
                     value = if (isDragging) sliderPosition else currentPosition.toFloat(),
                     onValueChange = { 
@@ -173,54 +185,49 @@ fun MiniPlayerOverlay(
                         player?.seekTo(sliderPosition.toLong())
                     },
                     valueRange = 0f..duration.toFloat(),
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp).height(24.dp)
                 )
 
-                // Playlist Header
-                val context = androidx.compose.ui.platform.LocalContext.current
+                // Separator Bar: Loop, Shuffle
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Playlist",
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.weight(1f)
-                    )
+                    var loopMode by remember { mutableIntStateOf(player?.repeatMode ?: Player.REPEAT_MODE_OFF) }
                     IconButton(onClick = { 
-                        player?.shuffleModeEnabled = !(player?.shuffleModeEnabled ?: false)
-                    }) {
+                        loopMode = when (loopMode) {
+                            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                            else -> Player.REPEAT_MODE_OFF
+                        }
+                        player?.repeatMode = loopMode
+                    }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            if (loopMode == Player.REPEAT_MODE_ONE) ImageVector.vectorResource(id = com.example.R.drawable.ic_loop_one_active)
+                            else if (loopMode == Player.REPEAT_MODE_ALL) ImageVector.vectorResource(id = com.example.R.drawable.ic_loop_all_active)
+                            else ImageVector.vectorResource(id = com.example.R.drawable.ic_loop_all_inactive),
+                            "Loop",
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    var shuffleMode by remember { mutableStateOf(player?.shuffleModeEnabled ?: false) }
+                    IconButton(onClick = { 
+                        shuffleMode = !shuffleMode
+                        player?.shuffleModeEnabled = shuffleMode
+                    }, modifier = Modifier.size(32.dp)) {
                         Icon(
                             Icons.Filled.Shuffle, 
-                            "Scramble",
-                            tint = if (player?.shuffleModeEnabled == true) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                        )
-                    }
-                    IconButton(onClick = {
-                        val intent = android.content.Intent("com.example.ACTION_ENTER_PIP")
-                        intent.setPackage(context.packageName)
-                        context.sendBroadcast(intent)
-                    }) {
-                        Icon(
-                            Icons.Filled.PictureInPicture,
-                            "PiP"
-                        )
-                    }
-                    IconButton(onClick = {
-                        val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
-                            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
-                        }
-                        context.startActivity(intent)
-                        onClose()
-                    }) {
-                        Icon(
-                            Icons.Filled.OpenInNew,
-                            "Main Player"
+                            "Shuffle",
+                            tint = if (shuffleMode) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
+                Divider()
 
                 // Playlist
                 LazyColumn(
@@ -235,12 +242,12 @@ fun MiniPlayerOverlay(
                                 .fillMaxWidth()
                                 .clickable { player?.seekToDefaultPosition(index) }
                                 .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = item.mediaMetadata.title?.toString() ?: item.mediaId,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -257,12 +264,12 @@ fun MiniPlayerOverlay(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Filled.Close, "Close")
+                    IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Filled.Close, "Close", modifier = Modifier.size(20.dp))
                     }
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(32.dp)
                             .pointerInput(Unit) {
                                 detectDragGestures { change, dragAmount ->
                                     change.consume()
@@ -271,7 +278,7 @@ fun MiniPlayerOverlay(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.ZoomOutMap, "Resize")
+                        Icon(Icons.Filled.ZoomOutMap, "Resize", modifier = Modifier.size(20.dp))
                     }
                 }
             }

@@ -130,7 +130,8 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
                 onNavigateToVideoEditor = { uri ->
                     val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("video_editor/$encodedUri")
-                }
+                },
+                initialSearchActive = (forceAction == "ACTION_SEARCH")
             )
         }
         composable("playlists") {
