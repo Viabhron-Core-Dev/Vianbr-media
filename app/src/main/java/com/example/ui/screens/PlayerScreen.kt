@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Loop
@@ -1052,7 +1053,7 @@ fun PlayerScreen(
                                 Icon(Icons.Filled.Speed, contentDescription = "Speed", tint = if (playbackSpeed != 1f) Color(0xFF2196F3) else Color.White)
                             }
                             IconButton(onClick = { showAudioDialog = true }) {
-                                Icon(Icons.Filled.Headphones, contentDescription = "Audio track", tint = Color.White)
+                                Icon(Icons.Filled.MusicNote, contentDescription = "Audio track", tint = Color.White)
                             }
                             IconButton(onClick = { showSubtitleDialog = true }) {
                                 Icon(Icons.Filled.Subtitles, contentDescription = "Subtitles", tint = Color.White)
@@ -1429,15 +1430,17 @@ fun PlayerScreen(
                                 }
                                 IconButton(onClick = {
                                     resizeMode = when (resizeMode) {
-                                        AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                        AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                                        else -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                                     }
                                 }) {
                                     val resizeIcon = when (resizeMode) {
-                                        AspectRatioFrameLayout.RESIZE_MODE_FIT -> Icons.Filled.FullscreenExit
-                                        AspectRatioFrameLayout.RESIZE_MODE_FILL -> Icons.Filled.Fullscreen
-                                        else -> Icons.Filled.Crop
+                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> androidx.compose.material.icons.Icons.Filled.AspectRatio
+                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> androidx.compose.material.icons.Icons.Filled.Fullscreen
+                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> androidx.compose.material.icons.Icons.Filled.Crop
+                                        else -> androidx.compose.material.icons.Icons.Filled.FullscreenExit
                                     }
                                     Icon(resizeIcon, contentDescription = "Aspect Ratio", tint = Color.White)
                                 }
