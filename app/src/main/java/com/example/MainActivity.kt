@@ -44,6 +44,14 @@ class MainActivity : ComponentActivity() {
       }
   }
 
+  private val _currentIntent = kotlinx.coroutines.flow.MutableStateFlow<android.content.Intent?>(null)
+
+  override fun onNewIntent(intent: android.content.Intent) {
+      super.onNewIntent(intent)
+      setIntent(intent)
+      _currentIntent.value = intent
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     val filter = android.content.IntentFilter("com.example.ACTION_ENTER_PIP")
@@ -85,7 +93,9 @@ class MainActivity : ComponentActivity() {
             android.graphics.Color.TRANSPARENT
         )
     )
+    _currentIntent.value = intent
     setContent {
+      val currentIntent by _currentIntent.collectAsState()
       val settings = com.example.data.SettingsManager.getInstance(this)
       com.example.service.PlayerManager.initialize(this, false)
       MyApplicationTheme {
@@ -97,21 +107,21 @@ class MainActivity : ComponentActivity() {
           Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize()) {
               var initialUris: List<String> = emptyList()
-              if (intent?.action == "com.example.ACTION_OPEN_PLAYER") {
+              if (currentIntent?.action == "com.example.ACTION_OPEN_PLAYER") {
                   val currentMediaId = com.example.service.PlayerManager.exoPlayer?.currentMediaItem?.mediaId
                   if (currentMediaId != null) {
                       initialUris = listOf(currentMediaId)
                   }
-              } else if (intent?.action == android.content.Intent.ACTION_VIEW) {
-                intent?.data?.let { uri ->
+              } else if (currentIntent?.action == android.content.Intent.ACTION_VIEW) {
+                currentIntent?.data?.let { uri ->
                   initialUris = listOf(uri.toString())
                 }
-              } else if (intent?.action == android.content.Intent.ACTION_SEND) {
-                (intent?.getParcelableExtra<android.os.Parcelable>(android.content.Intent.EXTRA_STREAM) as? android.net.Uri)?.let { uri ->
+              } else if (currentIntent?.action == android.content.Intent.ACTION_SEND) {
+                (currentIntent?.getParcelableExtra<android.os.Parcelable>(android.content.Intent.EXTRA_STREAM) as? android.net.Uri)?.let { uri ->
                   initialUris = listOf(uri.toString())
                 }
-              } else if (intent?.action == android.content.Intent.ACTION_SEND_MULTIPLE) {
-                val arrayList = intent?.getParcelableArrayListExtra<android.os.Parcelable>(android.content.Intent.EXTRA_STREAM)
+              } else if (currentIntent?.action == android.content.Intent.ACTION_SEND_MULTIPLE) {
+                val arrayList = currentIntent?.getParcelableArrayListExtra<android.os.Parcelable>(android.content.Intent.EXTRA_STREAM)
                 if (arrayList != null) {
                     val uris = mutableListOf<String>()
                     for (parcel in arrayList) {
@@ -121,11 +131,11 @@ class MainActivity : ComponentActivity() {
                 }
               }
               
-              val forceAction = intent?.component?.className?.let { className ->
+              val forceAction = currentIntent?.component?.className?.let { className ->
                   if (className.contains("PlayMediaActivity")) "play"
                   else if (className.contains("EditMediaActivity")) "edit"
                   else null
-              } ?: intent?.action
+              } ?: currentIntent?.action
               
               AppNavigation(initialUris = initialUris, forceAction = forceAction)
               

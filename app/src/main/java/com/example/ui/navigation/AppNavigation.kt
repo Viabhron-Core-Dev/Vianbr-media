@@ -41,7 +41,7 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
             val isVideo = mimeType?.startsWith("video/") == true
             val isAnimatedImage = mimeType == "image/gif" || mimeType == "image/webp"
             
-            if (forceAction == "play") {
+            if (forceAction == "play" || forceAction == "com.example.ACTION_OPEN_PLAYER") {
                 val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                 "player/$encodedUri"
             } else if (forceAction == "edit") {
@@ -66,6 +66,17 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
             }
         } else if (settingsManager.hasSeenWelcome) "main" else "welcome"
     }
+    
+    androidx.compose.runtime.LaunchedEffect(initialUris, forceAction) {
+        if (initialUris.isNotEmpty() && forceAction != null) {
+            navController.navigate(startDest) {
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+    
+
 
     var batchCompressionUris by remember { mutableStateOf<List<String>?>(null) }
     var batchFFmpegUris by remember { mutableStateOf<List<String>?>(null) }

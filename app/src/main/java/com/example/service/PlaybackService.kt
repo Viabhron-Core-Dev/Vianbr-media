@@ -42,6 +42,7 @@ class PlaybackService : MediaSessionService() {
         PlayerManager.initialize(this, false)
         
         val filter = android.content.IntentFilter("com.example.ACTION_WIDGET_COMMAND")
+        filter.addAction("com.example.ACTION_UPDATE_NOTIFICATION")
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(widgetCommandReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -257,28 +258,36 @@ class PlaybackService : MediaSessionService() {
             else -> com.example.R.drawable.ic_loop_none
         }
 
-        val buttons = listOf(
-            androidx.media3.session.CommandButton.Builder()
+        val priority = com.example.data.SettingsManager.getInstance(this).getNotificationPriority()
+        val buttons = mutableListOf<androidx.media3.session.CommandButton>()
+        
+        if (priority.contains("Loop")) {
+            buttons.add(androidx.media3.session.CommandButton.Builder()
                 .setDisplayName("Loop")
                 .setIconResId(loopIcon)
                 .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_LOOP", android.os.Bundle.EMPTY))
-                .build(),
-            androidx.media3.session.CommandButton.Builder()
+                .build())
+        }
+        if (priority.contains("Playlist")) {
+            buttons.add(androidx.media3.session.CommandButton.Builder()
                 .setDisplayName("Playlist")
                 .setIconResId(com.example.R.drawable.ic_playlist)
                 .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_OVERLAY", android.os.Bundle.EMPTY))
-                .build(),
-            androidx.media3.session.CommandButton.Builder()
+                .build())
+        }
+        if (priority.contains("PiP")) {
+            buttons.add(androidx.media3.session.CommandButton.Builder()
                 .setDisplayName("PiP")
                 .setIconResId(com.example.R.drawable.ic_pip)
                 .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_PIP", android.os.Bundle.EMPTY))
-                .build(),
-            androidx.media3.session.CommandButton.Builder()
-                .setDisplayName("Close")
-                .setIconResId(android.R.drawable.ic_menu_close_clear_cancel)
-                .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_CLOSE", android.os.Bundle.EMPTY))
-                .build()
-        )
+                .build())
+        }
+        
+        buttons.add(androidx.media3.session.CommandButton.Builder()
+            .setDisplayName("Close")
+            .setIconResId(android.R.drawable.ic_menu_close_clear_cancel)
+            .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_CLOSE", android.os.Bundle.EMPTY))
+            .build())
 
         mediaSession?.setCustomLayout(buttons)
     }
@@ -320,6 +329,10 @@ class PlaybackService : MediaSessionService() {
 
     private val widgetCommandReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+            if (intent.action == "com.example.ACTION_UPDATE_NOTIFICATION") {
+                updateCustomLayout()
+                return
+            }
             val player = PlayerManager.exoPlayer ?: return
             when (intent.getStringExtra("command")) {
                 "ACTION_PLAY_PAUSE" -> if (player.isPlaying) player.pause() else player.play()

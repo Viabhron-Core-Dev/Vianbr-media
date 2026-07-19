@@ -130,7 +130,8 @@ fun MiniPlayerOverlay(
                     IconButton(
                         onClick = {
                             val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
-                                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                action = "com.example.ACTION_OPEN_PLAYER"
+                                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
                             }
                             context.startActivity(intent)
                             onClose()

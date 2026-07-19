@@ -31,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.clickable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -253,47 +254,54 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             }
             
             if (showPriorityDialog) {
-                var currentPriority by remember { mutableStateOf(settingsManager.getNotificationPriority()) }
+                var selectedActions by remember { mutableStateOf(settingsManager.getNotificationPriority().toSet()) }
                 AlertDialog(
                     onDismissRequest = { showPriorityDialog = false },
-                    title = { Text("Notification Button Priority") },
+                    title = { Text("Notification Actions") },
                     text = {
                         Column {
-                            Text("Reorder buttons (top has higher priority in compact view):", style = MaterialTheme.typography.bodySmall)
+                            Text("Select custom actions to show in the notification (Playback and Close are permanent):", style = MaterialTheme.typography.bodySmall)
                             Spacer(modifier = Modifier.height(8.dp))
-                            LazyColumn {
-                                items(count = currentPriority.size) { index ->
-                                    val item = currentPriority[index]
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                                    ) {
-                                        Text(item, modifier = Modifier.weight(1f))
-                                        if (index > 0) {
-                                            IconButton(onClick = {
-                                                val newList = currentPriority.toMutableList()
-                                                newList.removeAt(index)
-                                                newList.add(index - 1, item)
-                                                currentPriority = newList
-                                                settingsManager.setNotificationPriority(newList)
-                                            }) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Up") }
+                            val availableActions = listOf("Loop", "Playlist", "PiP")
+                            availableActions.forEach { action ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (selectedActions.contains(action)) {
+                                                selectedActions = selectedActions - action
+                                            } else {
+                                                selectedActions = selectedActions + action
+                                            }
                                         }
-                                        if (index < currentPriority.size - 1) {
-                                            IconButton(onClick = {
-                                                val newList = currentPriority.toMutableList()
-                                                newList.removeAt(index)
-                                                newList.add(index + 1, item)
-                                                currentPriority = newList
-                                                settingsManager.setNotificationPriority(newList)
-                                            }) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Down") }
-                                        }
-                                    }
+                                        .padding(vertical = 8.dp)
+                                ) {
+                                    androidx.compose.material3.Checkbox(
+                                        checked = selectedActions.contains(action),
+                                        onCheckedChange = null
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(action)
                                 }
                             }
                         }
                     },
                     confirmButton = {
-                        TextButton(onClick = { showPriorityDialog = false }) { Text("Close") }
+                        TextButton(onClick = { 
+                            val toSave = selectedActions.toMutableList()
+                            if (!toSave.contains("Close")) toSave.add("Close")
+                            settingsManager.setNotificationPriority(toSave)
+                            
+                            val intent = android.content.Intent("com.example.ACTION_UPDATE_NOTIFICATION")
+                            intent.setPackage(context.packageName)
+                            context.sendBroadcast(intent)
+                            
+                            showPriorityDialog = false 
+                        }) { Text("Save") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showPriorityDialog = false }) { Text("Cancel") }
                     }
                 )
             }
