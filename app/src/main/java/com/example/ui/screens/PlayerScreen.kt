@@ -1445,6 +1445,21 @@ fun PlayerScreen(
                                     Icon(resizeIcon, contentDescription = "Aspect Ratio", tint = Color.White)
                                 }
                                 IconButton(onClick = {
+                                    if (android.provider.Settings.canDrawOverlays(context)) {
+                                        val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
+                                        overlayIntent.putExtra("command", "ACTION_OVERLAY")
+                                        overlayIntent.setPackage(context.packageName)
+                                        context.sendBroadcast(overlayIntent)
+                                        onNavigateBack()
+                                    } else {
+                                        val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
+                                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        context.startActivity(intent)
+                                    }
+                                }) {
+                                    Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "Minimize to Mini Player", tint = Color.White)
+                                }
+                                IconButton(onClick = {
                                     val appOps = context.getSystemService(android.content.Context.APP_OPS_SERVICE) as android.app.AppOpsManager
                                     val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                                         appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE, android.os.Process.myUid(), context.packageName)

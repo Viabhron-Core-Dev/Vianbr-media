@@ -288,6 +288,9 @@ class PlaybackService : MediaSessionService(), LifecycleOwner, ViewModelStoreOwn
         cv.setViewTreeLifecycleOwner(this@PlaybackService)
         cv.setViewTreeViewModelStoreOwner(this@PlaybackService)
         cv.setViewTreeSavedStateRegistryOwner(this@PlaybackService)
+        
+        val prefs = getSharedPreferences("MiniPlayerPrefs", android.content.Context.MODE_PRIVATE)
+
         cv.setContent {
             com.example.ui.components.MiniPlayerOverlay(
                 player = com.example.service.PlayerManager.exoPlayer,
@@ -307,6 +310,7 @@ class PlaybackService : MediaSessionService(), LifecycleOwner, ViewModelStoreOwn
                         lp.x += dx.toInt()
                         lp.y += dy.toInt()
                         windowManager.updateViewLayout(cv, lp)
+                        prefs.edit().putInt("x", lp.x).putInt("y", lp.y).apply()
                     }
                 },
                 onResize = { dw, dh ->
@@ -315,6 +319,7 @@ class PlaybackService : MediaSessionService(), LifecycleOwner, ViewModelStoreOwn
                         lp.width = (lp.width + dw.toInt()).coerceAtLeast(400)
                         lp.height = (lp.height + dh.toInt()).coerceAtLeast(400)
                         windowManager.updateViewLayout(cv, lp)
+                        prefs.edit().putInt("width", lp.width).putInt("height", lp.height).apply()
                     }
                 }
             )
@@ -326,8 +331,8 @@ class PlaybackService : MediaSessionService(), LifecycleOwner, ViewModelStoreOwn
             WindowManager.LayoutParams.TYPE_PHONE
         }
         val metrics = resources.displayMetrics
-        val widthPx = (300 * metrics.density).toInt()
-        val heightPx = (200 * metrics.density).toInt()
+        val widthPx = prefs.getInt("width", (300 * metrics.density).toInt())
+        val heightPx = prefs.getInt("height", (200 * metrics.density).toInt())
         layoutParams = WindowManager.LayoutParams(
             widthPx,
             heightPx,
@@ -336,8 +341,8 @@ class PlaybackService : MediaSessionService(), LifecycleOwner, ViewModelStoreOwn
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 100
-            y = 100
+            x = prefs.getInt("x", 100)
+            y = prefs.getInt("y", 100)
         }
         windowManager.addView(composeView, layoutParams)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
@@ -441,6 +446,7 @@ class PlaybackService : MediaSessionService(), LifecycleOwner, ViewModelStoreOwn
             }
             val player = PlayerManager.exoPlayer ?: return
             when (intent.getStringExtra("command")) {
+                "ACTION_OVERLAY" -> showOverlay()
                 "ACTION_PLAY_PAUSE" -> if (player.isPlaying) player.pause() else player.play()
                 "ACTION_PREV" -> player.seekToPreviousMediaItem()
                 "ACTION_NEXT" -> player.seekToNextMediaItem()

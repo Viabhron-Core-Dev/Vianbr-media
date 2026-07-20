@@ -274,7 +274,7 @@ fun MiniPlayerOverlay(
                         modifier = Modifier.padding(horizontal = 16.dp).height(24.dp)
                     )
                     
-                    // Separator Bar: Loop, Shuffle
+                    // Separator Bar: Loop, Shuffle, Sort
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -289,15 +289,10 @@ fun MiniPlayerOverlay(
                             }
                             player?.repeatMode = nextMode
                         }, modifier = Modifier.size(32.dp)) {
-                            val repeatIcon = when (loopMode) {
-                                Player.REPEAT_MODE_ONE -> painterResource(id = com.example.R.drawable.ic_loop_one_active)
-                                Player.REPEAT_MODE_ALL -> painterResource(id = com.example.R.drawable.ic_loop_all_active)
-                                else -> painterResource(id = com.example.R.drawable.ic_loop_all_inactive)
-                            }
                             Icon(
-                                repeatIcon,
+                                imageVector = if (loopMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
                                 contentDescription = "Loop",
-                                tint = Color.Unspecified,
+                                tint = if (loopMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else LocalContentColor.current,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -309,6 +304,19 @@ fun MiniPlayerOverlay(
                                 Icons.Filled.Shuffle, 
                                 "Shuffle",
                                 tint = if (shuffleMode) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(onClick = { 
+                            currentFolderItems = currentFolderItems.reversed()
+                            currentPlaylistItems = currentPlaylistItems.reversed()
+                            playlist = playlist.reversed()
+                        }, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                Icons.Filled.Sort, 
+                                "Sort",
+                                tint = LocalContentColor.current,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
