@@ -292,11 +292,14 @@ class PlaybackService : MediaSessionService(), LifecycleOwner, ViewModelStoreOwn
             com.example.ui.components.MiniPlayerOverlay(
                 player = com.example.service.PlayerManager.exoPlayer,
                 onClose = {
-                    hideOverlay()
                     val player = com.example.service.PlayerManager.exoPlayer
-                    if (player?.isPlaying == true) {
-                        player.pause()
-                    }
+                    player?.stop()
+                    player?.clearMediaItems()
+                    hideOverlay()
+                    stopSelf()
+                },
+                onMinimize = {
+                    hideOverlay()
                 },
                 onDrag = { dx, dy ->
                     val lp = layoutParams
@@ -457,12 +460,18 @@ class PlaybackService : MediaSessionService(), LifecycleOwner, ViewModelStoreOwn
                 "ACTION_PLAY_FILE" -> {
                     val uriStr = intent.getStringExtra("uri")
                     if (uriStr != null) {
-                        val playIntent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
-                            action = android.content.Intent.ACTION_VIEW
-                            data = android.net.Uri.parse(uriStr)
-                            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        }
-                        context.startActivity(playIntent)
+                        val mediaItem = androidx.media3.common.MediaItem.Builder()
+                            .setUri(uriStr)
+                            .setMediaId(uriStr)
+                            .setMediaMetadata(
+                                androidx.media3.common.MediaMetadata.Builder()
+                                    .setTitle(android.net.Uri.parse(uriStr).lastPathSegment ?: "Unknown")
+                                    .build()
+                            )
+                            .build()
+                        player.setMediaItem(mediaItem)
+                        player.prepare()
+                        player.play()
                     }
                 }
             }

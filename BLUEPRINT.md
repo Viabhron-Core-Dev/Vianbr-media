@@ -33,3 +33,5 @@
 - Corrected Sleep Timer Dialog injection in the compose hierarchy.
 - Added visual markers for A-B repeat points on the playback progress timeline slider.
 - Reduced size and length of the on-screen volume gesture slider to avoid overlapping topbar icons.
+- Enhanced Mini Player Explorer: Transformed the mini player playlist into a simple file explorer hierarchy (Now Playing, Folders, Playlists).
+- Updated Mini Player Controls: Added a minimize button alongside the close button. Close stops the background player completely, while minimize just hides the overlay.
