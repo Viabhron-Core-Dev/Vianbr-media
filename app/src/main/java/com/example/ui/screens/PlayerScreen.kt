@@ -272,6 +272,7 @@ fun PlayerScreen(
     var offsetY by remember { mutableFloatStateOf(0f) }
     var backgroundPlayEnabled by remember { mutableStateOf(false) }
     val backgroundPlayEnabledRef = androidx.compose.runtime.rememberUpdatedState(backgroundPlayEnabled)
+    val forceBackgroundPlay = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     val settingsManager = com.example.data.SettingsManager.getInstance(context)
     val decodedUriStringForInit = remember(uriString) { String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)) }
     var playbackSpeed by remember { mutableFloatStateOf(settingsManager.getPlaybackSpeed(decodedUriStringForInit)) }
@@ -619,7 +620,7 @@ fun PlayerScreen(
                     val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) activity?.isInPictureInPictureMode == true else false
                     // We don't call stop() here anymore. The PlaybackService will handle
                     // inactivity timeouts (5 mins) to release resources gracefully.
-                    if (!isPip && !backgroundPlayEnabledRef.value) {
+                    if (!isPip && !backgroundPlayEnabledRef.value && !forceBackgroundPlay.get()) {
                         controller.pause()
                     }
                 }
@@ -645,7 +646,7 @@ fun PlayerScreen(
                 val currentPos = controller.currentPosition
                 val dur = controller.duration
                 com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, currentPos, dur)
-                if (!backgroundPlayEnabledRef.value) {
+                if (!backgroundPlayEnabledRef.value && !forceBackgroundPlay.get()) {
                     controller.clearMediaItems()
                     controller.stop()
                 }
@@ -1415,12 +1416,11 @@ fun PlayerScreen(
                                     repeatMode = nextMode
                                     mediaController?.repeatMode = nextMode
                                 }) {
-                                    val repeatIcon = when (repeatMode) {
-                                        androidx.media3.common.Player.REPEAT_MODE_ONE -> androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_loop_one_active)
-                                        androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_loop_all_active)
-                                        else -> androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_loop_all_inactive)
-                                    }
-                                    Icon(repeatIcon, contentDescription = "Repeat", tint = Color.Unspecified)
+                                    Icon(
+                                        imageVector = if (repeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE) androidx.compose.material.icons.Icons.Filled.RepeatOne else androidx.compose.material.icons.Icons.Filled.Repeat,
+                                        contentDescription = "Repeat",
+                                        tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) androidx.compose.ui.graphics.Color(0xFF2196F3) else androidx.compose.ui.graphics.Color.White
+                                    )
                                 }
                                 IconButton(onClick = { 
                                     backgroundPlayEnabled = !backgroundPlayEnabled
@@ -1450,6 +1450,8 @@ fun PlayerScreen(
                                         overlayIntent.putExtra("command", "ACTION_OVERLAY")
                                         overlayIntent.setPackage(context.packageName)
                                         context.sendBroadcast(overlayIntent)
+                                        forceBackgroundPlay.set(true)
+                                        backgroundPlayEnabled = true
                                         onNavigateBack()
                                     } else {
                                         val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
@@ -1457,7 +1459,7 @@ fun PlayerScreen(
                                         context.startActivity(intent)
                                     }
                                 }) {
-                                    Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "Minimize to Mini Player", tint = Color.White)
+                                    Icon(androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_playlist), contentDescription = "Minimize to Mini Player", tint = Color.White, modifier = Modifier.size(24.dp))
                                 }
                                 IconButton(onClick = {
                                     val appOps = context.getSystemService(android.content.Context.APP_OPS_SERVICE) as android.app.AppOpsManager
