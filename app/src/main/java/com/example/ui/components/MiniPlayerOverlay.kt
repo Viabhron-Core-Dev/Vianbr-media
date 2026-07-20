@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -35,6 +36,7 @@ fun MiniPlayerOverlay(
     var duration by remember { mutableLongStateOf(player?.duration?.coerceAtLeast(0L) ?: 0L) }
     var title by remember { mutableStateOf(player?.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown") }
     var playlist by remember { mutableStateOf(emptyList<MediaItem>()) }
+    var isReversed by remember { mutableStateOf(false) }
     var currentIndex by remember { mutableIntStateOf(player?.currentMediaItemIndex ?: -1) }
     var isExpanded by remember { mutableStateOf(false) }
     var loopMode by remember { mutableIntStateOf(player?.repeatMode ?: Player.REPEAT_MODE_OFF) }
@@ -155,6 +157,13 @@ fun MiniPlayerOverlay(
                             tint = if (shuffleMode) Color(0xFF2196F3) else Color.White
                         )
                     }
+                    IconButton(onClick = { isReversed = !isReversed }) {
+                        Icon(
+                            imageVector = Icons.Filled.Sort,
+                            contentDescription = "Sort",
+                            tint = if (isReversed) Color(0xFF2196F3) else Color.White
+                        )
+                    }
                     IconButton(onClick = { 
                         player?.let {
                             it.repeatMode = when (it.repeatMode) {
@@ -189,23 +198,28 @@ fun MiniPlayerOverlay(
             
             if (isExpanded) {
                 // The playlist view
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.Start, verticalAlignment = Alignment.CenterVertically) {
                     Text("Now Playing", style = MaterialTheme.typography.titleSmall, color = Color.White)
-                    IconButton(onClick = { playlist = playlist.reversed() }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Filled.Sort, "Sort", tint = Color.White)
-                    }
                 }
+                val displayList = if (isReversed) {
+                    playlist.mapIndexed { index, item -> Pair(index, item) }.reversed()
+                } else {
+                    playlist.mapIndexed { index, item -> Pair(index, item) }
+                }
+                
                 LazyColumn(
                     modifier = Modifier
                         .weight(2f)
                         .fillMaxWidth()
                 ) {
-                    itemsIndexed(playlist) { index, item ->
-                        val isSelected = index == currentIndex
+                    items(displayList) { pair ->
+                        val originalIndex = pair.first
+                        val item = pair.second
+                        val isSelected = originalIndex == currentIndex
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { player?.seekToDefaultPosition(index) }
+                                .clickable { player?.seekToDefaultPosition(originalIndex) }
                                 .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
