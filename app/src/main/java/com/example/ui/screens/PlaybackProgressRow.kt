@@ -62,15 +62,25 @@ fun PlaybackProgressRow(
             color = Color.White,
             fontSize = 12.sp
         )
+        var wasPlayingBeforeScrub by remember { mutableStateOf(false) }
+
         Slider(
             value = if (isScrubbing) scrubPosition else (if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f),
             onValueChange = { scale ->
+                if (!isScrubbing) {
+                    wasPlayingBeforeScrub = mediaController?.isPlaying == true
+                    mediaController?.pause()
+                }
                 isScrubbing = true
                 scrubPosition = scale
+                mediaController?.seekTo((scale * duration).toLong())
             },
             onValueChangeFinished = {
                 mediaController?.seekTo((scrubPosition * duration).toLong())
                 isScrubbing = false
+                if (wasPlayingBeforeScrub) {
+                    mediaController?.play()
+                }
             },
             thumb = {
                 Box(

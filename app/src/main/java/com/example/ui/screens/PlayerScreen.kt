@@ -312,11 +312,8 @@ fun PlayerScreen(
         if (window != null) {
             val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
             insetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            if (showControls) {
-                insetsController.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-            } else {
-                insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-            }
+            // Keep system bars hidden, we'll draw our own custom status info
+            insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
         }
     }
 
@@ -719,6 +716,7 @@ fun PlayerScreen(
                 if (startBrightness < 0) startBrightness = 0.5f
                 
                 val startPosition = mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L
+                var wasPlayingBeforeSeek = false
 
                 do {
                     val event = awaitPointerEvent()
@@ -746,6 +744,8 @@ fun PlayerScreen(
                                 if (kotlin.math.abs(dragDistanceX) > 20f || kotlin.math.abs(dragDistanceY) > 20f) {
                                     if (kotlin.math.abs(dragDistanceX) > kotlin.math.abs(dragDistanceY)) {
                                         currentGesture = GestureType.SEEK
+                                        wasPlayingBeforeSeek = mediaController?.isPlaying == true
+                                        mediaController?.pause()
                                     } else {
                                         currentGesture = GestureType.VOLUME
                                     }
@@ -798,6 +798,9 @@ fun PlayerScreen(
                     val seekOffsetMs = (dragDistanceX / size.width) * 120_000
                     val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, currentDuration)
                     mediaController?.seekTo(targetPos)
+                    if (wasPlayingBeforeSeek) {
+                        mediaController?.play()
+                    }
                 }
                 
                 activeGesture = GestureType.NONE
@@ -932,10 +935,10 @@ fun PlayerScreen(
         }
 
         androidx.compose.animation.AnimatedVisibility(
-            visible = !showControls && !isInPipMode,
+            visible = showControls && !isInPipMode && !isLocked,
             enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(200)),
             exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200)),
-            modifier = Modifier.align(Alignment.TopEnd)
+            modifier = Modifier.align(Alignment.TopEnd).windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBarsIgnoringVisibility.union(androidx.compose.foundation.layout.WindowInsets.displayCutout).only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal + androidx.compose.foundation.layout.WindowInsetsSides.Top)).padding(top = 16.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -1019,7 +1022,7 @@ fun PlayerScreen(
                     // Top controls background
                     Box(modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
+                        .height(100.dp)
                         .align(Alignment.TopCenter)
                         .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)))
                     )
