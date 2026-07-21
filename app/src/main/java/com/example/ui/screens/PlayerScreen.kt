@@ -312,8 +312,11 @@ fun PlayerScreen(
         if (window != null) {
             val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
             insetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            // Keep system bars hidden, we'll draw our own custom status info
-            insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            if (showControls) {
+                insetsController.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            } else {
+                insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            }
         }
     }
 
@@ -705,6 +708,7 @@ fun PlayerScreen(
                 var dragDistanceX = 0f
                 var dragDistanceY = 0f
                 var lastVirtualVolume = -1
+                var lastSeekTime = 0L
                 
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
                 val maxVolume = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
@@ -758,7 +762,11 @@ fun PlayerScreen(
                                     val currentDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
                                     val seekOffsetMs = (dragDistanceX / size.width) * 120_000
                                     val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, currentDuration)
-                                    mediaController?.seekTo(targetPos)
+                                    val currentTime = System.currentTimeMillis()
+                                    if (currentTime - lastSeekTime > 300) {
+                                        mediaController?.seekTo(targetPos)
+                                        lastSeekTime = currentTime
+                                    }
                                     seekOffsetSec = ((dragDistanceX / size.width) * 120).toInt()
                                     change.consume()
                                 }

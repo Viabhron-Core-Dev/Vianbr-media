@@ -63,6 +63,7 @@ fun PlaybackProgressRow(
             fontSize = 12.sp
         )
         var wasPlayingBeforeScrub by remember { mutableStateOf(false) }
+    var lastSeekTime by remember { mutableLongStateOf(0L) }
 
         Slider(
             value = if (isScrubbing) scrubPosition else (if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f),
@@ -73,7 +74,11 @@ fun PlaybackProgressRow(
                 }
                 isScrubbing = true
                 scrubPosition = scale
-                mediaController?.seekTo((scale * duration).toLong())
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastSeekTime > 300) {
+                    mediaController?.seekTo((scale * duration).toLong())
+                    lastSeekTime = currentTime
+                }
             },
             onValueChangeFinished = {
                 mediaController?.seekTo((scrubPosition * duration).toLong())
